@@ -200,31 +200,3 @@ export async function CasesTab({ drug, condition }: { drug: string; condition?: 
     </div>
   );
 }
-
-const COMING: Record<string, { title: string; items: string[]; sources: string }> = {
-  specialists: {
-    title: "Specialists",
-    items: [
-      "Verified physicians by specialty and location",
-      "Self-reported experience treating patients with this drug",
-      "Contact details so you can reach them directly",
-    ],
-    sources: "NPPES NPI Registry, plus physician profiles on Vynthera",
-  },
-};
-
-export function ComingSoonTab({ tab }: { tab: keyof typeof COMING }) {
-  const c = COMING[tab];
-  return (
-    <Card>
-      <h2 className="text-2xl font-semibold">{c.title}</h2>
-      <p className="mt-1 text-muted">This tab is planned for the next build, after the Evidence and Cases tabs are reviewed.</p>
-      <ul className="mt-3 list-disc space-y-1 pl-5">
-        {c.items.map((i) => (
-          <li key={i}>{i}</li>
-        ))}
-      </ul>
-      <p className="mt-3 text-sm text-muted">Data sources: {c.sources}.</p>
-    </Card>
-  );
-}

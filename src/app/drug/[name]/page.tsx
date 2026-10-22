@@ -5,10 +5,12 @@ import { SearchForm } from "@/components/search-form";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { SourceProblems } from "@/components/source-problems";
 import { AiSummary, SummaryCard } from "@/components/summary-card";
-import { CasesTab, ComingSoonTab, EvidenceTab } from "@/components/tabs-content";
+import { CasesTab, EvidenceTab } from "@/components/tabs-content";
 import { PatientTab } from "@/components/patient-tab";
 import { ManufacturerTab } from "@/components/manufacturer-tab";
 import { CostsTab } from "@/components/costs-tab";
+import { SpecialistsTab } from "@/components/specialists-tab";
+import { cleanFilters } from "@/lib/specialists";
 import { Card, LoadingBlock, Skeleton, SourceLink } from "@/components/ui";
 import { cleanCondition, cleanDrugName } from "@/lib/evidence";
 import { loadOverview } from "@/lib/loaders";
@@ -107,7 +109,11 @@ async function DrugContent({ params, searchParams }: Props) {
                 <CostsTab drug={drug} />
               </Suspense>
             ),
-            specialists: <ComingSoonTab tab="specialists" />,
+            specialists: (
+              <Suspense fallback={<LoadingBlock label="Finding clinicians who prescribe this drug…" lines={6} />}>
+                <SpecialistsTab {...props} filters={cleanFilters(sp)} />
+              </Suspense>
+            ),
             patient: (
               <Suspense fallback={<LoadingBlock label="Loading label and MedlinePlus information…" lines={6} />}>
                 <PatientTab {...props} />

@@ -17,7 +17,7 @@ function Tile({ heading, children }: { heading: string; children: React.ReactNod
 /** Key takeaways, scannable in about ten seconds. */
 export async function SummaryCard({ drug, condition }: { drug: string; condition?: string }) {
   const [overview, evidence, costs] = await Promise.all([loadOverview(drug), loadEvidence(drug, condition), loadCosts(drug)]);
-  const range = (r: { min: number; max: number }) => (r.min === r.max ? money(r.min) : `${money(r.min)}–${money(r.max)}`);
+  const range = (r: { min: number; max: number }) => (r.min === r.max ? money(r.min) : `from ${money(r.min)}`);
   const perFill = costs.partD.find((r) => r.brand.toLowerCase() === r.generic.toLowerCase()) ?? costs.partD[0];
   const { label, mechanisms } = overview;
   const classes = label ? [...label.pharmClassEpc, ...label.pharmClassMoa].map((c) => c.replace(/\s*\[(EPC|MoA)\]$/, "")) : [];

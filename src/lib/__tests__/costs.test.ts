@@ -20,6 +20,7 @@ describe("NADAC accumulation", () => {
     acc.add(["METFORMIN HCL 500 MG TABLET", "1", "0.018", "01/01/2025", "EA", "N", "G", "01/08/2025"]);
     acc.add(["GLUCOPHAGE 500 MG TABLET", "2", "1.10", "01/01/2025", "EA", "N", "B", "01/08/2025"]);
     acc.add(["BAD ROW", "3", "n/a", "", "EA", "N", "G", ""]);
+    acc.add(["DISCONTINUED 5 MG TABLET", "4", "9.99", "06/01/2024", "EA", "N", "G", "06/05/2024"]);
     expect(acc.rows()).toEqual([
       ["GLUCOPHAGE 500 MG TABLET", 1.1, "EA", "2025-01-01", "B", "N"],
       ["METFORMIN HCL 500 MG TABLET", 0.018, "EA", "2025-01-01", "G", "N"],

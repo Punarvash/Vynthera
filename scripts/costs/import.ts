@@ -70,13 +70,19 @@ async function importCms(meta: CostMeta): Promise<void> {
   if (!url) {
     const catalog = (await (await fetchOk(CMS_CATALOG)).json()) as { dataset?: Parameters<typeof pickDataset>[0] };
     const datasets = catalog.dataset ?? [];
-    const spending = pickDataset(datasets, /^Medicare Part D Spending by Drug$/i);
+    const partDTitles = datasets.map((d) => d.title ?? "").filter((t) => /part d/i.test(t));
+    console.log(`CMS catalog: ${datasets.length} datasets; Part D titles: ${partDTitles.join(" | ")}`);
+    const spending =
+      pickDataset(datasets, /^Medicare Part D Spending by Drug$/i) ?? pickDataset(datasets, /Part D Spending by Drug/i);
     const csv = spending && pickCsv(spending);
+    if (spending && !csv) {
+      console.log(`Distributions: ${JSON.stringify(spending.distribution?.slice(0, 5))}`);
+    }
     if (!spending || !csv?.downloadURL) throw new Error("Could not find Medicare Part D Spending by Drug in the data.cms.gov catalog");
     url = csv.downloadURL;
     title = spending.title ?? title;
 
-    const prescribers = pickDataset(datasets, /^Medicare Part D Prescribers - by Provider and Drug$/i);
+    const prescribers = pickDataset(datasets, /Part D Prescribers.*by Provider and Drug/i);
     const api = prescribers && pickApi(prescribers);
     if (prescribers && api?.accessURL) {
       const year = Number((api.title ?? api.temporal ?? "").match(/\b20\d{2}\b/g)?.pop()) || undefined;

@@ -114,6 +114,8 @@ export class NadacAccumulator {
   rows(): NadacRow[] {
     const byDesc = new Map<string, NadacLatest>();
     for (const r of this.byNdc.values()) {
+      // Products missing from the newest weekly survey are no longer priced; leave them out.
+      if (this.latestAsOf && r.asOf && r.asOf !== this.latestAsOf) continue;
       const prev = byDesc.get(r.description);
       if (!prev || `${r.asOf}|${r.effective}` > `${prev.asOf}|${prev.effective}`) byDesc.set(r.description, r);
     }

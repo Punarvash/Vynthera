@@ -33,4 +33,5 @@ export const demoMeta: CostMeta = {
   importedAt: "2026-10-20",
   nadac: { title: demoNadac.datasetTitle, url: demoNadac.sourceUrl, asOf: demoNadac.asOf, rows: 4 },
   partD: { title: demoPartD.datasetTitle, url: demoPartD.sourceUrl, year: 2024, rows: 2 },
+  prescribers: { title: "Prescribers demo placeholder", apiUrl: "https://data.cms.gov/data-api/v1/dataset/demo/data", year: 2024 },
 };

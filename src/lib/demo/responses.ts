@@ -163,6 +163,25 @@ export function demoResponse(url: string, init?: RequestInit): Response {
           ],
         },
       });
+    case "data.cms.gov":
+      return json([
+        { Prscrbr_NPI: "1000000001", Prscrbr_Last_Org_Name: "PLACEHOLDER", Prscrbr_First_Name: "ALEX", Prscrbr_City: "HOUSTON", Prscrbr_State_Abrvtn: "TX", Prscrbr_Type: "Endocrinology", Brnd_Name: "Metformin HCl", Gnrc_Name: "Metformin HCl", Tot_Clms: "420", Tot_Benes: "130" },
+        { Prscrbr_NPI: "1000000002", Prscrbr_Last_Org_Name: "EXAMPLE", Prscrbr_First_Name: "SAM", Prscrbr_City: "HOUSTON", Prscrbr_State_Abrvtn: "TX", Prscrbr_Type: "Internal Medicine", Brnd_Name: "Metformin HCl", Gnrc_Name: "Metformin HCl", Tot_Clms: "35", Tot_Benes: "" },
+      ]);
+    case "npiregistry.cms.hhs.gov": {
+      const npi = u.searchParams.get("number") ?? "1000000001";
+      return json({
+        result_count: 1,
+        results: [
+          {
+            number: npi,
+            basic: { first_name: npi.endsWith("1") ? "ALEX" : "SAM", last_name: npi.endsWith("1") ? "PLACEHOLDER" : "EXAMPLE", credential: "M.D." },
+            addresses: [{ address_purpose: "LOCATION", address_1: "100 DEMO STREET", city: "HOUSTON", state: "TX", postal_code: "770300000", telephone_number: "555-010-0100" }],
+            taxonomies: [{ desc: npi.endsWith("1") ? "Endocrinology, Diabetes & Metabolism" : "Internal Medicine", primary: true }],
+          },
+        ],
+      });
+    }
     case "api.platform.opentargets.org":
       return graphql(String(init?.body ?? "{}"));
     default:
