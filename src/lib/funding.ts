@@ -32,7 +32,7 @@ export function classifyFunding(article: Article, trialsById: Map<string, Trial>
   const linked = article.nctIds.map((id) => trialsById.get(id)).filter((t): t is Trial => t !== undefined);
   const industryTrial = linked.find((t) => isIndustry(t.sponsorClass));
   if (industryTrial) {
-    return { kind: "industry", reason: `Registered trial ${industryTrial.nctId} is sponsored by ${industryTrial.sponsor}` };
+    return { kind: "industry", reason: `Registered trial ${industryTrial.nctId} is sponsored by ${industryTrial.sponsor.replace(/\.$/, "")}` };
   }
   const industryGrant = article.grantAgencies.find((g) => isIndustryAgency(g, manufacturers));
   if (industryGrant) {
@@ -40,7 +40,7 @@ export function classifyFunding(article: Article, trialsById: Map<string, Trial>
   }
   const independentTrial = linked.find((t) => isIndependent(t.sponsorClass));
   if (independentTrial) {
-    return { kind: "independent", reason: `Registered trial ${independentTrial.nctId} is sponsored by ${independentTrial.sponsor}` };
+    return { kind: "independent", reason: `Registered trial ${independentTrial.nctId} is sponsored by ${independentTrial.sponsor.replace(/\.$/, "")}` };
   }
   if (article.grantAgencies.length > 0) {
     return { kind: "independent", reason: `Funding listed from ${article.grantAgencies.slice(0, 2).join(", ")}` };

@@ -19,7 +19,7 @@ import type {
 } from "./types";
 
 /** Run one source; on failure record a visible problem and fall back, so one outage never blanks the page. */
-async function attempt<T>(source: string, problems: SourceProblem[], fallback: T, fn: () => Promise<T>): Promise<T> {
+export async function attempt<T>(source: string, problems: SourceProblem[], fallback: T, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
@@ -37,7 +37,7 @@ export function cleanCondition(raw: string | string[] | undefined): string | und
   return v ? v : undefined;
 }
 
-function drugTerms(name: string, label: DrugLabel | null): string[] {
+export function drugTerms(name: string, label: DrugLabel | null): string[] {
   const terms = [name, label && baseDrugName(label.genericName), label?.genericName, ...(label?.brandNames ?? [])].filter(
     (t): t is string => Boolean(t),
   );
@@ -60,7 +60,7 @@ export async function getDrugOverview(name: string): Promise<DrugOverview> {
   return { name: label ? baseDrugName(label.genericName) : name.toLowerCase(), label, mechanisms: moa?.mechanisms ?? [], problems };
 }
 
-async function withFunding(articles: Article[], label: DrugLabel | null, problems: SourceProblem[]): Promise<Article[]> {
+export async function withFunding(articles: Article[], label: DrugLabel | null, problems: SourceProblem[]): Promise<Article[]> {
   const ids = [...new Set(articles.flatMap((a) => a.nctIds))];
   const linked = await attempt("ClinicalTrials.gov", problems, [] as Trial[], () => trialsByIds(ids));
   const byId = new Map(linked.map((t) => [t.nctId, t]));

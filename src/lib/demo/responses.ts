@@ -87,6 +87,26 @@ const demoPreprints = {
   },
 };
 
+const demoApplications = [
+  {
+    application_number: "NDA000001",
+    sponsor_name: "DEMO PHARMACEUTICALS INC",
+    products: [{ brand_name: "DEMOBRAND", marketing_status: "Prescription", dosage_form: "TABLET", route: "ORAL" }],
+    submissions: [{ submission_type: "ORIG", submission_status: "AP", submission_status_date: "19950303" }],
+  },
+  {
+    application_number: "ANDA000002",
+    sponsor_name: "PLACEHOLDER GENERICS USA LLC",
+    products: [{ brand_name: "METFORMIN HYDROCHLORIDE", marketing_status: "Prescription", dosage_form: "TABLET", route: "ORAL" }],
+    submissions: [{ submission_type: "ORIG", submission_status: "AP", submission_status_date: "20020101" }],
+  },
+  {
+    application_number: "ANDA000003",
+    sponsor_name: "EXAMPLE LABS LTD",
+    products: [{ brand_name: "METFORMIN HYDROCHLORIDE", marketing_status: "Discontinued", dosage_form: "TABLET", route: "ORAL" }],
+  },
+];
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
@@ -115,6 +135,9 @@ export function demoResponse(url: string, init?: RequestInit): Response {
   const isDemoDrug = /metformin|glucophage/i.test(decodeURIComponent(u.search));
   switch (u.hostname) {
     case "api.fda.gov":
+      if (u.pathname.includes("drugsfda")) {
+        return isDemoDrug ? json({ results: demoApplications }) : json({ error: { code: "NOT_FOUND" } }, 404);
+      }
       if (/indications_and_usage|pharm_class/.test(decodeURIComponent(u.search))) return json({ error: { code: "NOT_FOUND" } }, 404);
       return isDemoDrug ? json({ meta: { results: { total: 1 } }, results: [demoLabel] }) : json({ error: { code: "NOT_FOUND" } }, 404);
     case "eutils.ncbi.nlm.nih.gov":

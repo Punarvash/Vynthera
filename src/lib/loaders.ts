@@ -2,6 +2,7 @@ import { cache } from "react";
 import { getCases, getDrugOverview, getEvidence } from "./evidence";
 import { summarizeEvidence } from "./ai-summary";
 import { describeError } from "./http";
+import { getManufacturerBundle } from "./manufacturer";
 import { plainLanguage } from "./patient-info";
 import { medlinePlusForRxcuis, type MedlinePlusEntry } from "./sources/medlineplus";
 import type { SourceProblem } from "./types";
@@ -10,6 +11,7 @@ import type { SourceProblem } from "./types";
 export const loadOverview = cache(getDrugOverview);
 export const loadEvidence = cache(getEvidence);
 export const loadCases = cache(getCases);
+export const loadManufacturer = cache(getManufacturerBundle);
 export const loadSummary = cache(async (drug: string, condition: string | undefined) =>
   summarizeEvidence(await loadEvidence(drug, condition)),
 );

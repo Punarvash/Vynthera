@@ -7,6 +7,7 @@ import { SourceProblems } from "@/components/source-problems";
 import { AiSummary, SummaryCard } from "@/components/summary-card";
 import { CasesTab, ComingSoonTab, EvidenceTab } from "@/components/tabs-content";
 import { PatientTab } from "@/components/patient-tab";
+import { ManufacturerTab } from "@/components/manufacturer-tab";
 import { Card, LoadingBlock, Skeleton, SourceLink } from "@/components/ui";
 import { cleanCondition, cleanDrugName } from "@/lib/evidence";
 import { loadOverview } from "@/lib/loaders";
@@ -95,7 +96,11 @@ async function DrugContent({ params, searchParams }: Props) {
                 <CasesTab {...props} />
               </Suspense>
             ),
-            manufacturer: <ComingSoonTab tab="manufacturer" />,
+            manufacturer: (
+              <Suspense fallback={<LoadingBlock label="Loading FDA applications and manufacturer research…" lines={6} />}>
+                <ManufacturerTab drug={drug} />
+              </Suspense>
+            ),
             costs: <ComingSoonTab tab="costs" />,
             specialists: <ComingSoonTab tab="specialists" />,
             patient: (

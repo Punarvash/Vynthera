@@ -101,3 +101,11 @@ export function formatPhase(phases: string[]): string {
 export function formatStatus(status: string): string {
   return status.charAt(0) + status.slice(1).toLowerCase().replace(/_/g, " ");
 }
+
+/** Trials of a drug led by a given sponsor (e.g. its manufacturer). */
+export async function trialsBySponsor(drug: string, sponsor: string, pageSize = 20): Promise<Trial[]> {
+  "use cache";
+  cacheLife("days");
+  const url = `${BASE}?format=json&pageSize=${pageSize}&query.intr=${encodeURIComponent(drug)}&query.spons=${encodeURIComponent(sponsor)}&fields=${FIELDS}`;
+  return parse(await getJson<RawResponse>(SOURCE, url));
+}

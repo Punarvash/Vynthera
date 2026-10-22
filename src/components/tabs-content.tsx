@@ -202,11 +202,6 @@ export async function CasesTab({ drug, condition }: { drug: string; condition?: 
 }
 
 const COMING: Record<string, { title: string; items: string[]; sources: string }> = {
-  manufacturer: {
-    title: "Manufacturer",
-    items: ["Manufacturer name for each FDA label", "The manufacturer's own trials and publications, labelled"],
-    sources: "openFDA / DailyMed, ClinicalTrials.gov, PubMed",
-  },
   costs: {
     title: "Costs",
     items: [

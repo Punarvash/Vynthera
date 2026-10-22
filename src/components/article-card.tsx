@@ -1,8 +1,8 @@
 import { DesignBadge, FundingBadge, PreprintBadge } from "./badges";
-import { SourceLink } from "./ui";
+import { Badge, SourceLink } from "./ui";
 import type { Article } from "@/lib/types";
 
-export function ArticleCard({ article }: { article: Article }) {
+export function ArticleCard({ article, manufacturerLinked }: { article: Article; manufacturerLinked?: boolean }) {
   const a = article;
   return (
     <article className="rounded-lg border border-line bg-surface p-4">
@@ -10,6 +10,11 @@ export function ArticleCard({ article }: { article: Article }) {
         <DesignBadge design={a.design} inferred={a.designInferred} />
         {!a.peerReviewed && <PreprintBadge />}
         <FundingBadge funding={a.funding} />
+        {manufacturerLinked && (
+          <Badge tone="industry" title="Author affiliation or funding linked to the manufacturer">
+            Manufacturer research
+          </Badge>
+        )}
       </div>
       <h4 className="font-semibold leading-snug">
         <SourceLink href={a.url}>{a.title}</SourceLink>
