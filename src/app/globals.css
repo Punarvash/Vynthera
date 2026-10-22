@@ -61,3 +61,19 @@ details > summary {
     display: none !important;
   }
 }
+
+/* "Print handout" prints only the patient view. */
+@media print {
+  html.print-handout body * {
+    visibility: hidden;
+  }
+  html.print-handout #handout,
+  html.print-handout #handout * {
+    visibility: visible;
+  }
+  html.print-handout #handout {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
+}

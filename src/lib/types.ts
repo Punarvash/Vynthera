@@ -77,10 +77,26 @@ export interface DrugLabel {
   pharmClassEpc: string[];
   toxicology?: string;
   routes: string[];
+  /** RxNorm concept IDs, used for MedlinePlus lookups. */
+  rxcuis: string[];
+  /** FDA application numbers: NDA/BLA (original brand) or ANDA (generic). */
+  applicationNumbers: string[];
+  dosage?: string;
+  adverseReactions?: string;
+  adverseTable?: LabelTable;
+  boxedWarning?: string;
+  warnings?: string;
+  contraindications?: string;
+  pregnancy?: string;
   setId: string;
   /** ISO date (YYYY-MM-DD) of the label version. */
   effectiveDate?: string;
   dailyMedUrl: string;
+}
+
+export interface LabelTable {
+  caption?: string;
+  rows: string[][];
 }
 
 export interface TargetMechanism {

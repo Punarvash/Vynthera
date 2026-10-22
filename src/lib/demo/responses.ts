@@ -11,7 +11,15 @@ export const demoLabel = {
   mechanism_of_action: [
     "12.1 Mechanism of Action Metformin decreases hepatic glucose production, decreases intestinal absorption of glucose, and improves insulin sensitivity by increasing peripheral glucose uptake and utilization.",
   ],
-  nonclinical_toxicology: ["13 NONCLINICAL TOXICOLOGY (demo text)"],
+  nonclinical_toxicology: ["13 NONCLINICAL TOXICOLOGY Placeholder animal toxicity text for interface testing."],
+  dosage_and_administration: ["2 DOSAGE AND ADMINISTRATION Placeholder dosage text for interface testing."],
+  adverse_reactions: ["6 ADVERSE REACTIONS Placeholder adverse reactions text for interface testing."],
+  adverse_reactions_table: [
+    "<table><caption>Table 1 (demo placeholder)</caption><thead><tr><th>Reaction</th><th>Drug (%)</th><th>Placebo (%)</th></tr></thead><tbody><tr><td>Demo reaction A</td><td>10</td><td>5</td></tr><tr><td>Demo reaction B</td><td>6</td><td>2</td></tr></tbody></table>",
+  ],
+  boxed_warning: ["WARNING: PLACEHOLDER BOXED WARNING TEXT FOR INTERFACE TESTING."],
+  warnings_and_cautions: ["5 WARNINGS AND PRECAUTIONS Placeholder warnings text."],
+  contraindications: ["4 CONTRAINDICATIONS Placeholder contraindications text."],
   openfda: {
     generic_name: ["METFORMIN HYDROCHLORIDE"],
     brand_name: ["GLUCOPHAGE"],
@@ -19,6 +27,8 @@ export const demoLabel = {
     pharm_class_moa: [],
     pharm_class_epc: ["Biguanide [EPC]"],
     route: ["ORAL"],
+    rxcui: ["000001"],
+    application_number: ["NDA000001"],
   },
 };
 
@@ -118,6 +128,18 @@ export function demoResponse(url: string, init?: RequestInit): Response {
       return json(isDemoDrug ? demoPreprints : { hitCount: 0, resultList: { result: [] } });
     case "clinicaltrials.gov":
       return json(isDemoDrug || u.searchParams.has("filter.ids") ? demoTrials : { totalCount: 0, studies: [] });
+    case "connect.medlineplus.gov":
+      return json({
+        feed: {
+          entry: [
+            {
+              title: { _value: "Demo medicine page (placeholder)" },
+              link: [{ href: "https://medlineplus.gov/" }],
+              summary: { _value: "<p>Placeholder plain-language summary for interface testing.</p>" },
+            },
+          ],
+        },
+      });
     case "api.platform.opentargets.org":
       return graphql(String(init?.body ?? "{}"));
     default:

@@ -1,7 +1,7 @@
 import { cacheLife } from "next/cache";
 import { getJson } from "../http";
-import { asArray, compactDateToIso, titleCase } from "../text";
-import type { DrugLabel } from "../types";
+import { asArray, compactDateToIso, stripTags, titleCase } from "../text";
+import type { DrugLabel, LabelTable } from "../types";
 
 // openFDA drug label API: https://open.fda.gov/apis/drug/label/
 const BASE = "https://api.fda.gov/drug/label.json";
@@ -14,7 +14,17 @@ interface RawLabel {
   mechanism_of_action?: string[];
   nonclinical_toxicology?: string[];
   carcinogenesis_and_mutagenesis_and_impairment_of_fertility?: string[];
+  dosage_and_administration?: string[];
+  adverse_reactions?: string[];
+  adverse_reactions_table?: string[];
+  boxed_warning?: string[];
+  warnings_and_cautions?: string[];
+  warnings?: string[];
+  contraindications?: string[];
+  pregnancy?: string[];
   openfda?: {
+    rxcui?: string[];
+    application_number?: string[];
     generic_name?: string[];
     brand_name?: string[];
     manufacturer_name?: string[];
@@ -39,6 +49,22 @@ function labelUrl(clauses: string[], limit: number): string {
   return `${BASE}?search=${clauses.join("+")}&limit=${limit}${key}`;
 }
 
+/** Turn a label's HTML table into rows of plain-text cells; the HTML itself is never rendered. */
+export function parseLabelTable(html: string | undefined, maxRows = 30): LabelTable | undefined {
+  if (!html) return undefined;
+  const caption = html.match(/<caption[^>]*>([\s\S]*?)<\/caption>/i)?.[1];
+  const rows = (html.match(/<tr[\s\S]*?<\/tr>/gi) ?? [])
+    .map((tr) => [...tr.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)].map((m) => stripTags(m[1])).slice(0, 8))
+    .filter((cells) => cells.some(Boolean))
+    .slice(0, maxRows);
+  return rows.length > 1 ? { caption: caption ? stripTags(caption) : undefined, rows } : undefined;
+}
+
+function section(raw: string[] | undefined, heading: RegExp): string | undefined {
+  const text = raw?.join(" ").trim();
+  return text ? stripSectionHeading(text, heading) : undefined;
+}
+
 /** Strip the leading "1 INDICATIONS AND USAGE" style heading from a label section. */
 export function stripSectionHeading(text: string, heading: RegExp): string {
   return text.replace(new RegExp(`^\\s*[\\d.]*\\s*${heading.source}\\s*:?\\s*`, "i"), "").trim();
@@ -59,8 +85,17 @@ export function toDrugLabel(raw: RawLabel): DrugLabel | null {
       : undefined,
     pharmClassMoa: asArray(o.pharm_class_moa),
     pharmClassEpc: asArray(o.pharm_class_epc),
-    toxicology: tox,
+    toxicology: tox ? stripSectionHeading(tox, /NONCLINICAL\s+TOXICOLOGY/) : undefined,
     routes: asArray(o.route),
+    rxcuis: asArray(o.rxcui),
+    applicationNumbers: asArray(o.application_number),
+    dosage: section(raw.dosage_and_administration, /DOSAGE\s*(AND|&)\s*ADMINISTRATION/),
+    adverseReactions: section(raw.adverse_reactions, /ADVERSE\s+REACTIONS/),
+    adverseTable: parseLabelTable(raw.adverse_reactions_table?.[0]),
+    boxedWarning: section(raw.boxed_warning, /(BOXED\s+)?WARNING:?/),
+    warnings: section(raw.warnings_and_cautions ?? raw.warnings, /WARNINGS(\s*(AND|&)\s*PRECAUTIONS)?/),
+    contraindications: section(raw.contraindications, /CONTRAINDICATIONS/),
+    pregnancy: section(raw.pregnancy, /(8\.1\s*)?PREGNANCY/),
     setId: raw.set_id,
     effectiveDate: compactDateToIso(raw.effective_time),
     dailyMedUrl: `https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${encodeURIComponent(raw.set_id)}`,

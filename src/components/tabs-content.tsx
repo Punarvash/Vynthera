@@ -226,15 +226,6 @@ const COMING: Record<string, { title: string; items: string[]; sources: string }
     ],
     sources: "NPPES NPI Registry, plus physician profiles on Vynthera",
   },
-  patient: {
-    title: "Patient info",
-    items: [
-      "Dosage, side effects and how often they occur",
-      "Animal safety data from the label's nonclinical toxicology section",
-      "Plain-language explanation, benefits and risks, and a printable handout",
-    ],
-    sources: "openFDA / DailyMed, MedlinePlus Connect, PubMed",
-  },
 };
 
 export function ComingSoonTab({ tab }: { tab: keyof typeof COMING }) {

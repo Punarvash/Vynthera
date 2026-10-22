@@ -5,9 +5,7 @@ import { z } from "zod";
 import { DESIGN_LABEL } from "./design";
 import { firstSentences, truncate } from "./text";
 import type { EvidenceBundle } from "./evidence";
-import { isDemoMode } from "./http";
-
-const DEFAULT_MODEL = "claude-opus-5-5";
+import { claudeEnabled, claudeModel } from "./claude";
 
 export interface SummarySource {
   id: string;
@@ -91,7 +89,7 @@ async function callClaude(drug: string, condition: string | undefined, sources: 
   const client = new Anthropic();
   const topic = condition ? `${drug} for ${condition}` : drug;
   const response = await client.messages.parse({
-    model: process.env.CLAUDE_MODEL || DEFAULT_MODEL,
+    model: claudeModel(),
     max_tokens: 4000,
     system: SYSTEM,
     output_config: { effort: "medium", format: zodOutputFormat(SummarySchema) },
@@ -116,7 +114,7 @@ export async function summarizeEvidence(bundle: EvidenceBundle): Promise<Evidenc
   if (bundle.studies.length === 0) {
     return extractive(bundle, "No peer-reviewed studies to summarize.");
   }
-  if (!process.env.ANTHROPIC_API_KEY || isDemoMode()) {
+  if (!claudeEnabled()) {
     return extractive(bundle, "Conclusions quoted from the top study abstracts. AI summaries switch on once an Anthropic API key is added.");
   }
   const sources = sourcesFor(bundle);
