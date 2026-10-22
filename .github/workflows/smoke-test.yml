@@ -1,0 +1,27 @@
+name: Live smoke test
+
+# Builds the site and loads every tab against the real public APIs. Run manually from the Actions tab.
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Start server
+        run: |
+          npm start -- -p 3000 > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/ > /dev/null && break; sleep 1; done
+      - name: Load every tab
+        run: node scripts/smoke-test.ts http://localhost:3000
+      - name: Server log
+        if: always()
+        run: tail -100 server.log
