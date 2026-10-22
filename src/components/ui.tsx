@@ -21,7 +21,7 @@ export function Badge({ tone, children, title }: { tone: BadgeTone; children: Re
     <span
       title={title}
       className={clsx(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-sm font-medium whitespace-nowrap",
+        "inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-0.5 text-sm font-medium sm:whitespace-nowrap",
         BADGE_TONES[tone],
       )}
     >

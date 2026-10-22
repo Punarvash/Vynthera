@@ -36,7 +36,8 @@ export interface Provider {
 }
 
 function formatZip(z?: string): string {
-  return z && z.length === 9 ? `${z.slice(0, 5)}-${z.slice(5)}` : (z ?? "");
+  if (z && z.length === 9) return z.endsWith("0000") ? z.slice(0, 5) : `${z.slice(0, 5)}-${z.slice(5)}`;
+  return z ?? "";
 }
 
 export function toProvider(r: RawResult): Provider | null {

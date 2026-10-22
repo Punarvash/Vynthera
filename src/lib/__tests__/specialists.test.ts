@@ -26,7 +26,7 @@ describe("NPI Registry", () => {
       ],
       taxonomies: [{ desc: "Internal Medicine" }, { desc: "Rheumatology", primary: true }],
     })!;
-    expect(p).toMatchObject({ npi: "1234567890", name: "Jane Doe", credential: "MD", specialty: "Rheumatology", address: "1 Main St", city: "Austin, TX 78701-0000", phone: "512-555-0100" });
+    expect(p).toMatchObject({ npi: "1234567890", name: "Jane Doe", credential: "MD", specialty: "Rheumatology", address: "1 Main St", city: "Austin, TX 78701", phone: "512-555-0100" });
     expect(toProvider({ number: "12" })).toBeNull();
   });
 });

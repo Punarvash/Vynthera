@@ -72,8 +72,8 @@ async function importCms(meta: CostMeta): Promise<void> {
     const datasets = catalog.dataset ?? [];
     const partDTitles = datasets.map((d) => d.title ?? "").filter((t) => /part d/i.test(t));
     console.log(`CMS catalog: ${datasets.length} datasets; Part D titles: ${partDTitles.join(" | ")}`);
-    const spending =
-      pickDataset(datasets, /^Medicare Part D Spending by Drug$/i) ?? pickDataset(datasets, /Part D Spending by Drug/i);
+    // Catalog titles look like "Medicare Part D Spending by Drug : 2024-01-01"; the quarterly file has a different layout.
+    const spending = pickDataset(datasets, /^Medicare Part D Spending by Drug\b/i);
     const csv = spending && pickCsv(spending);
     if (spending && !csv) {
       console.log(`Distributions: ${JSON.stringify(spending.distribution?.slice(0, 5))}`);
@@ -82,7 +82,7 @@ async function importCms(meta: CostMeta): Promise<void> {
     url = csv.downloadURL;
     title = spending.title ?? title;
 
-    const prescribers = pickDataset(datasets, /Part D Prescribers.*by Provider and Drug/i);
+    const prescribers = pickDataset(datasets, /^Medicare Part D Prescribers - by Provider and Drug\b/i);
     const api = prescribers && pickApi(prescribers);
     if (prescribers && api?.accessURL) {
       const year = Number((api.title ?? api.temporal ?? "").match(/\b20\d{2}\b/g)?.pop()) || undefined;

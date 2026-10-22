@@ -88,3 +88,15 @@ it("formats NADAC product names", () => {
   expect(formatProduct("METFORMIN HCL ER 500 MG TABLET")).toBe("Metformin HCl ER 500 mg tablet");
   expect(formatProduct("INSULIN GLARGINE 100 UNIT/ML VIAL")).toBe("Insulin glargine 100 unit/mL vial");
 });
+
+it("finds the annual Part D datasets by their catalog titles", () => {
+  const titles = [
+    "Medicare Quarterly Part D Spending by Drug : 2026-01-01",
+    "Medicare Part D Spending by Drug : 2024-01-01",
+    "Medicare Part D Prescribers - by Provider and Drug : 2023-12-31",
+    "Medicare Part D Prescribers - by Provider and Drug : 2024-12-01",
+    "Medicare Part D Prescribers - by Provider : 2024-12-03",
+  ].map((title) => ({ title }));
+  expect(pickDataset(titles, /^Medicare Part D Spending by Drug\b/i)?.title).toBe("Medicare Part D Spending by Drug : 2024-01-01");
+  expect(pickDataset(titles, /^Medicare Part D Prescribers - by Provider and Drug\b/i)?.title).toContain("2024-12-01");
+});
