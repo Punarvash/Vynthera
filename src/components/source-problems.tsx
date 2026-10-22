@@ -12,7 +12,7 @@ export function SourceProblems({ problems }: { problems: SourceProblem[] }) {
       <ul className="mt-1 list-disc pl-6">
         {problems.map((p) => (
           <li key={p.source}>
-            {p.source} {p.message.replace(`${p.source}: `, "")}. Results from it are missing below; try again in a few minutes.
+            {p.source} is not responding right now, so its results are missing below. Try again in a few minutes.
           </li>
         ))}
       </ul>

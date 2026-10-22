@@ -32,14 +32,17 @@ for (const [name, path] of pages) {
   const html = await res.text();
   const t = text(html);
   const ms = Math.round(performance.now() - started);
-  const problems = t.match(/Some data sources are unavailable right now(.*?)(try again in a few minutes\.\s*)+/)?.[0] ?? "";
+  const problems = [...t.matchAll(/(\S+(?: \S+)?) is not responding right now/g)].map((m) => m[1]).join(", ");
   const crash = /Application error|Internal Server Error|This page could not be found/.test(t);
   if (crash || res.status >= 400) failed = true;
   console.log(`\n=== ${name} (${res.status}, ${ms} ms) ${res.url.replace(base, "")}`);
   if (crash) console.log("!! PAGE ERROR");
-  if (problems) console.log(`!! ${problems.slice(0, 600)}`);
-  const main = t.slice(t.indexOf("Skip to content") + 15, t.indexOf("Medical disclaimer."));
-  console.log(main.slice(0, 2500));
+  if (problems) console.log(`!! Unavailable: ${problems}`);
+  // Streamed sections arrive after the footer in the HTML, so drop only the footer text itself.
+  const footerStart = t.indexOf("Medical disclaimer.");
+  const footerEnd = t.indexOf("pending legal review.");
+  const body = footerStart >= 0 && footerEnd > footerStart ? t.slice(0, footerStart) + t.slice(footerEnd + 21) : t;
+  console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, 3500));
 }
 if (failed) process.exitCode = 1;
 export {};
