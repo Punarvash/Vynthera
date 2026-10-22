@@ -95,3 +95,19 @@ describe("drug name matching", () => {
     expect(namesDrug(l, "metoprolol")).toBe(false);
   });
 });
+
+describe("label choice", () => {
+  it("prefers the brand holder over repackagers and drops brand names equal to the generic", () => {
+    const base = toDrugLabel(demoLabel)!;
+    const repack: DrugLabel = { ...base, setId: "r", manufacturer: "RemedyRepack Inc.", applicationNumbers: ["ANDA1"], effectiveDate: "2026-09-01" };
+    const generic: DrugLabel = { ...base, setId: "g", manufacturer: "Zydus Pharmaceuticals", applicationNumbers: ["ANDA2"], effectiveDate: "2026-01-01" };
+    expect(pickBestLabel([repack, generic], "metformin")?.setId).toBe("g");
+    const plain = toDrugLabel({ ...demoLabel, openfda: { ...demoLabel.openfda, brand_name: ["METFORMIN HYDROCHLORIDE"] } })!;
+    expect(plain.brandNames).toEqual([]);
+  });
+
+  it("decodes entities in label text", () => {
+    const l = toDrugLabel({ ...demoLabel, boxed_warning: ["WARNING: lactate levels (&gt;5 mmol/Liter)"] })!;
+    expect(l.boxedWarning).toBe("lactate levels (>5 mmol/Liter)");
+  });
+});

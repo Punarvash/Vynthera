@@ -15,7 +15,7 @@ function CompanyCard({ company: c }: { company: Company }) {
     <div className="rounded-lg border border-line bg-surface p-4">
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <h4 className="text-lg font-semibold">{c.name}</h4>
-        {c.isInnovator && <Badge tone="ai">Original manufacturer</Badge>}
+        {c.isInnovator && <Badge tone="ai">Brand-name (NDA/BLA) holder</Badge>}
         {c.activeProducts === 0 && <Badge tone="neutral">No products currently marketed</Badge>}
       </div>
       <ul className="space-y-1 text-[0.95rem]">

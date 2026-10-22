@@ -91,19 +91,19 @@ const demoApplications = [
   {
     application_number: "NDA000001",
     sponsor_name: "DEMO PHARMACEUTICALS INC",
-    products: [{ brand_name: "DEMOBRAND", marketing_status: "Prescription", dosage_form: "TABLET", route: "ORAL" }],
+    products: [{ brand_name: "DEMOBRAND", marketing_status: "Prescription", dosage_form: "TABLET", route: "ORAL", active_ingredients: [{ name: "METFORMIN HYDROCHLORIDE" }] }],
     submissions: [{ submission_type: "ORIG", submission_status: "AP", submission_status_date: "19950303" }],
   },
   {
     application_number: "ANDA000002",
     sponsor_name: "PLACEHOLDER GENERICS USA LLC",
-    products: [{ brand_name: "METFORMIN HYDROCHLORIDE", marketing_status: "Prescription", dosage_form: "TABLET", route: "ORAL" }],
+    products: [{ brand_name: "METFORMIN HYDROCHLORIDE", marketing_status: "Prescription", dosage_form: "TABLET", route: "ORAL", active_ingredients: [{ name: "METFORMIN HYDROCHLORIDE" }] }],
     submissions: [{ submission_type: "ORIG", submission_status: "AP", submission_status_date: "20020101" }],
   },
   {
     application_number: "ANDA000003",
     sponsor_name: "EXAMPLE LABS LTD",
-    products: [{ brand_name: "METFORMIN HYDROCHLORIDE", marketing_status: "Discontinued", dosage_form: "TABLET", route: "ORAL" }],
+    products: [{ brand_name: "METFORMIN HYDROCHLORIDE", marketing_status: "Discontinued", dosage_form: "TABLET", route: "ORAL", active_ingredients: [{ name: "METFORMIN HYDROCHLORIDE" }] }],
   },
 ];
 

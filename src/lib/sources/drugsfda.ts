@@ -30,6 +30,8 @@ export interface Application {
   forms: string[];
   activeProducts: number;
   totalProducts: number;
+  /** Active ingredient names of each product, to tell single-ingredient products from combinations. */
+  ingredients: string[][];
   /** ISO date of the original approval, when listed. */
   approvedOn?: string;
   url: string;
@@ -49,6 +51,7 @@ export function toApplication(raw: RawApplication): Application | null {
     forms: [...new Set(products.map((p) => [p.dosage_form, p.route].filter(Boolean).join(", ").toLowerCase()).filter(Boolean))],
     activeProducts: products.filter((p) => p.marketing_status && !/discontinued|none/i.test(p.marketing_status)).length,
     totalProducts: products.length,
+    ingredients: products.map((p) => (p.active_ingredients ?? []).map((i) => (i.name ?? "").toLowerCase()).filter(Boolean)),
     approvedOn: compactDateToIso(original?.submission_status_date),
     url: `https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo=${number.replace(/\D/g, "")}`,
   };

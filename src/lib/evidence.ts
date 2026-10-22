@@ -112,7 +112,10 @@ export async function getEvidence(name: string, condition: string | undefined): 
     attempt("ClinicalTrials.gov", problems, { total: 0, trials: [] as Trial[] }, () => searchTrials(drug, condition)),
   ]);
 
-  const studies = (await withFunding(lit.articles, label, problems)).sort((a, b) => compareDesign(a.design, b.design));
+  const aboutDrug = (a: Article) => lit.terms.some((t) => a.title.toLowerCase().includes(t)) ? 0 : 1;
+  const studies = (await withFunding(lit.articles, label, problems)).sort(
+    (a, b) => compareDesign(a.design, b.design) || aboutDrug(a) - aboutDrug(b),
+  );
   const preprints = (await withFunding(lit.preprints, label, problems)).filter((a) =>
     ["meta-analysis", "systematic-review", "rct", "clinical-trial", "observational", "other"].includes(a.design),
   );

@@ -85,7 +85,9 @@ export async function getManufacturerBundle(name: string): Promise<ManufacturerB
   const drug = label ? baseDrugName(label.genericName) : name.toLowerCase();
   const ingredientNames = [...new Set([label?.genericName, drug].filter((n): n is string => Boolean(n)))];
 
-  const apps = await attempt("openFDA (Drugs@FDA)", problems, [] as Application[], () => applicationsForDrug(ingredientNames));
+  const allApps = await attempt("openFDA (Drugs@FDA)", problems, [] as Application[], () => applicationsForDrug(ingredientNames));
+  // Combination products (e.g. sitagliptin-metformin) belong to other drug pages.
+  const apps = allApps.filter((a) => a.ingredients.some((ing) => ing.length === 1 && baseDrugName(ing[0]) === drug));
   const companies = groupByCompany(apps);
 
   // Research is attributed to the original brand holders and the current label's manufacturer.

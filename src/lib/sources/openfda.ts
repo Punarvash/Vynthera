@@ -61,7 +61,7 @@ export function parseLabelTable(html: string | undefined, maxRows = 30): LabelTa
 }
 
 function section(raw: string[] | undefined, heading: RegExp): string | undefined {
-  const text = raw?.join(" ").trim();
+  const text = raw ? stripTags(raw.join(" ")) : "";
   return text ? stripSectionHeading(text, heading) : undefined;
 }
 
@@ -77,15 +77,15 @@ export function toDrugLabel(raw: RawLabel): DrugLabel | null {
   const tox = raw.nonclinical_toxicology?.[0] ?? raw.carcinogenesis_and_mutagenesis_and_impairment_of_fertility?.[0];
   return {
     genericName: generic.toLowerCase(),
-    brandNames: [...new Set(asArray(o.brand_name).map(titleCase))],
+    brandNames: [...new Set(asArray(o.brand_name).map(titleCase))].filter(
+      (b) => baseDrugName(b) !== baseDrugName(generic) && b.toLowerCase() !== generic.toLowerCase(),
+    ),
     manufacturer: o.manufacturer_name?.[0] ?? "Not listed",
-    indications: stripSectionHeading(raw.indications_and_usage?.join(" ") ?? "", /INDICATIONS\s*(AND|&)\s*USAGE/),
-    mechanism: raw.mechanism_of_action?.[0]
-      ? stripSectionHeading(raw.mechanism_of_action[0], /MECHANISM\s+OF\s+ACTION/)
-      : undefined,
+    indications: section(raw.indications_and_usage, /INDICATIONS\s*(AND|&)\s*USAGE/) ?? "",
+    mechanism: section(raw.mechanism_of_action, /MECHANISM\s+OF\s+ACTION/),
     pharmClassMoa: asArray(o.pharm_class_moa),
     pharmClassEpc: asArray(o.pharm_class_epc),
-    toxicology: tox ? stripSectionHeading(tox, /NONCLINICAL\s+TOXICOLOGY/) : undefined,
+    toxicology: tox ? section([tox], /NONCLINICAL\s+TOXICOLOGY/) : undefined,
     routes: asArray(o.route),
     rxcuis: asArray(o.rxcui),
     applicationNumbers: asArray(o.application_number),
@@ -120,11 +120,25 @@ export function namesDrug(label: DrugLabel, query: string): boolean {
  * Choose the most useful label among many (generics share a drug name):
  * exact single-ingredient name match first, then labels with a mechanism section, then newest.
  */
+/** Repackagers and relabelers publish copies of the original label; prefer the manufacturer's own. */
+const REPACKAGER =
+  /repack|relabel|pharmacy|bryant ranch|proficient rx|preferred pharmaceuticals|a-s medication|nucare|direct[_ ]?rx|quality care|aphena|lake erie|henry schein|unit dose services|asclemed|denton|medsource|rebel distributors|aidarex|northwind|blenheim|golden state medical|pd-rx|physicians total care|stat rx|dispensing solutions|liberty pharmaceuticals|safecor|american health packaging|cardinal health|mckesson|major pharmaceuticals|marlex|harkins|altura|legacy pharmaceutical packaging|clinical solutions wholesale|advanced rx|readymeds|coupler|quallent|chartwell rx|medvantx|nostrum/i;
+
+export function isRepackager(manufacturer: string): boolean {
+  return REPACKAGER.test(manufacturer);
+}
+
+/**
+ * Choose the most useful label among many (generics, repackagers and biosimilars share a name):
+ * exact name match, single ingredient, brand (NDA/BLA) holder, not a repackager, has a mechanism section; then newest.
+ */
 export function pickBestLabel(labels: DrugLabel[], query: string): DrugLabel | null {
   const q = query.trim().toLowerCase();
   const score = (l: DrugLabel) =>
     (l.genericName === q ? 5 : namesDrug(l, q) ? 4 : 0) +
     (l.genericName.includes(" and ") || l.genericName.includes(",") ? 0 : 2) +
+    (l.applicationNumbers.some((n) => /^(NDA|BLA)/.test(n)) ? 3 : 0) +
+    (isRepackager(l.manufacturer) ? -4 : 0) +
     (l.mechanism ? 1 : 0);
   return (
     [...labels].sort(
@@ -142,7 +156,14 @@ async function searchLabels(clauses: string[], limit: number): Promise<DrugLabel
 export async function getLabels(name: string): Promise<DrugLabel[]> {
   "use cache";
   cacheLife("days");
-  return searchLabels([`openfda.generic_name:${quote(name)}`, `openfda.brand_name:${quote(name)}`], 25);
+  // Exact-name labels first (e.g. "adalimumab" itself, not only its biosimilars), then a broader match.
+  const upper = name.trim().toUpperCase();
+  const [exact, broad] = await Promise.all([
+    searchLabels([`openfda.generic_name.exact:${quote(upper)}`, `openfda.brand_name.exact:${quote(upper)}`], 20),
+    searchLabels([`openfda.generic_name:${quote(name)}`, `openfda.brand_name:${quote(name)}`], 25),
+  ]);
+  const seen = new Set<string>();
+  return [...exact, ...broad].filter((l) => (seen.has(l.setId) ? false : (seen.add(l.setId), true)));
 }
 
 export async function getLabel(name: string): Promise<DrugLabel | null> {

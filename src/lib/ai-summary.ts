@@ -3,7 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { cacheLife } from "next/cache";
 import { z } from "zod";
 import { DESIGN_LABEL } from "./design";
-import { firstSentences, truncate } from "./text";
+import { truncate } from "./text";
 import type { EvidenceBundle } from "./evidence";
 import { claudeEnabled, claudeModel } from "./claude";
 
@@ -72,12 +72,22 @@ function sourcesFor(bundle: EvidenceBundle): SourceForPrompt[] {
   return out;
 }
 
+/** The closing sentences of an abstract, where conclusions usually are. */
+function lastSentences(text: string, n: number): string {
+  const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g) ?? [text];
+  return sentences.slice(-n).join("").trim();
+}
+
 function extractive(bundle: EvidenceBundle, note: string): EvidenceSummary {
-  const findings = bundle.studies
+  const drug = bundle.drug.toLowerCase();
+  const ranked = [...bundle.studies].sort(
+    (a, b) => Number(!a.title.toLowerCase().includes(drug)) - Number(!b.title.toLowerCase().includes(drug)),
+  );
+  const findings = ranked
     .filter((a) => a.conclusion || a.abstract)
     .slice(0, 4)
     .map((a) => ({
-      text: truncate(a.conclusion ?? firstSentences(a.abstract.split(/conclusions?:/i).pop() ?? a.abstract, 2), 320),
+      text: truncate(a.conclusion ?? lastSentences(a.abstract, 2), 320),
       sources: [{ id: a.id, label: `${a.authors.split(",")[0] || "Study"} ${a.year}`.trim(), url: a.url }],
     }));
   return { mode: "extractive", findings, note };
