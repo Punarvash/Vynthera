@@ -202,16 +202,6 @@ export async function CasesTab({ drug, condition }: { drug: string; condition?: 
 }
 
 const COMING: Record<string, { title: string; items: string[]; sources: string }> = {
-  costs: {
-    title: "Costs",
-    items: [
-      "List price and Medicaid acquisition cost, with the pricing year",
-      "Medicare Part D spending and plan coverage",
-      "Comparison with drugs that share the mechanism",
-      "\"Last updated\" date on every figure",
-    ],
-    sources: "CMS Part D Drug Spending, NADAC, CMS formulary files, RxNorm (weekly imports)",
-  },
   specialists: {
     title: "Specialists",
     items: [

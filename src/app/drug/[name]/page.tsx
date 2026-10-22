@@ -8,6 +8,7 @@ import { AiSummary, SummaryCard } from "@/components/summary-card";
 import { CasesTab, ComingSoonTab, EvidenceTab } from "@/components/tabs-content";
 import { PatientTab } from "@/components/patient-tab";
 import { ManufacturerTab } from "@/components/manufacturer-tab";
+import { CostsTab } from "@/components/costs-tab";
 import { Card, LoadingBlock, Skeleton, SourceLink } from "@/components/ui";
 import { cleanCondition, cleanDrugName } from "@/lib/evidence";
 import { loadOverview } from "@/lib/loaders";
@@ -101,7 +102,11 @@ async function DrugContent({ params, searchParams }: Props) {
                 <ManufacturerTab drug={drug} />
               </Suspense>
             ),
-            costs: <ComingSoonTab tab="costs" />,
+            costs: (
+              <Suspense fallback={<LoadingBlock label="Loading NADAC and Medicare cost data…" lines={6} />}>
+                <CostsTab drug={drug} />
+              </Suspense>
+            ),
             specialists: <ComingSoonTab tab="specialists" />,
             patient: (
               <Suspense fallback={<LoadingBlock label="Loading label and MedlinePlus information…" lines={6} />}>

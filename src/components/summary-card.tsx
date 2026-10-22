@@ -1,7 +1,8 @@
 import { AiBadge, GradePill, LabelStatusBadge } from "./badges";
 import { Card, SourceLink } from "./ui";
 import { labelStatusText } from "@/lib/label-status";
-import { loadEvidence, loadOverview, loadSummary } from "@/lib/loaders";
+import { loadCosts, loadEvidence, loadOverview, loadSummary } from "@/lib/loaders";
+import { money, unitLabel } from "@/lib/costs";
 import { firstSentences, truncate } from "@/lib/text";
 
 function Tile({ heading, children }: { heading: string; children: React.ReactNode }) {
@@ -15,7 +16,9 @@ function Tile({ heading, children }: { heading: string; children: React.ReactNod
 
 /** Key takeaways, scannable in about ten seconds. */
 export async function SummaryCard({ drug, condition }: { drug: string; condition?: string }) {
-  const [overview, evidence] = await Promise.all([loadOverview(drug), loadEvidence(drug, condition)]);
+  const [overview, evidence, costs] = await Promise.all([loadOverview(drug), loadEvidence(drug, condition), loadCosts(drug)]);
+  const range = (r: { min: number; max: number }) => (r.min === r.max ? money(r.min) : `${money(r.min)}–${money(r.max)}`);
+  const perFill = costs.partD.find((r) => r.brand.toLowerCase() === r.generic.toLowerCase()) ?? costs.partD[0];
   const { label, mechanisms } = overview;
   const classes = label ? [...label.pharmClassEpc, ...label.pharmClassMoa].map((c) => c.replace(/\s*\[(EPC|MoA)\]$/, "")) : [];
   const targetLine = mechanisms
@@ -52,7 +55,29 @@ export async function SummaryCard({ drug, condition }: { drug: string; condition
           </p>
         </Tile>
         <Tile heading="Cost range">
-          <p className="text-muted">Coming with the Costs tab, using CMS and NADAC public pricing.</p>
+          {costs.genericRange && (
+            <p>
+              <span className="font-semibold">Generic {range(costs.genericRange)}</span>{" "}
+              <span className="text-[0.95rem] text-muted">{unitLabel(costs.genericRange.unit)}</span>
+            </p>
+          )}
+          {costs.brandRange && (
+            <p>
+              <span className="font-semibold">Brand {range(costs.brandRange)}</span>{" "}
+              <span className="text-[0.95rem] text-muted">{unitLabel(costs.brandRange.unit)}</span>
+            </p>
+          )}
+          {perFill && (
+            <p className="text-[0.95rem] text-muted">
+              Medicare: {money(perFill.avgPerClaim)} per fill ({costs.partDYear})
+            </p>
+          )}
+          {!costs.genericRange && !costs.brandRange && !perFill && (
+            <p className="text-muted">{costs.imported ? "No public price data for this drug." : "Cost data not imported yet."}</p>
+          )}
+          {(costs.genericRange || costs.brandRange) && (
+            <p className="text-sm text-muted">Pharmacy acquisition cost (NADAC), as of {costs.nadacAsOf}.</p>
+          )}
         </Tile>
         <Tile heading="Off-label status">
           <p>
