@@ -123,3 +123,15 @@ it("decodes double-encoded entities", async () => {
   const { stripTags } = await import("../text");
   expect(stripTags("levels &amp;gt;5 mcg/mL")).toBe("levels >5 mcg/mL");
 });
+
+it("reads Open Targets drug candidates and clinical stages", async () => {
+  const { stageToPhase, toCandidates } = await import("../sources/opentargets");
+  expect([stageToPhase("APPROVAL"), stageToPhase("PHASE_2_3"), stageToPhase("PHASE_1"), stageToPhase("PRECLINICAL")]).toEqual([4, 3, 1, undefined]);
+  const out = toCandidates([
+    { maxClinicalStage: "PHASE_2", drug: { id: "C1", name: "METFORMIN", mechanismsOfAction: { rows: [{ mechanismOfAction: "AMPK activator" }] } } },
+    { maxClinicalStage: "APPROVAL", drug: { id: "C1", name: "METFORMIN" } },
+    { maxClinicalStage: "PHASE_3", drug: { id: "C2", name: "INOSITOL" } },
+    { maxClinicalStage: "PHASE_1", drug: null },
+  ]);
+  expect(out.map((d) => [d.name, d.maxPhase])).toEqual([["metformin", 4], ["inositol", 3]]);
+});

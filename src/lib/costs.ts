@@ -79,7 +79,7 @@ export function formatProduct(description: string): string {
 }
 
 export function unitLabel(unit: string): string {
-  return { EA: "per tablet, capsule or unit", ML: "per mL", GM: "per gram" }[unit.toUpperCase()] ?? `per ${unit.toLowerCase()}`;
+  return { EA: "per unit", ML: "per mL", GM: "per gram" }[unit.toUpperCase()] ?? `per ${unit.toLowerCase()}`;
 }
 
 export function money(n: number): string {
