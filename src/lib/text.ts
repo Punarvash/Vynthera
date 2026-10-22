@@ -8,6 +8,17 @@ const ENTITIES: Record<string, string> = {
 };
 
 export function decodeEntities(s: string): string {
+  // Some sources double-encode ("&amp;gt;"), so decode until the text stops changing.
+  let prev = s;
+  for (let i = 0; i < 3; i++) {
+    const next = decodeOnce(prev);
+    if (next === prev) return next;
+    prev = next;
+  }
+  return prev;
+}
+
+function decodeOnce(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, code: string) => {
     if (code[0] === "#") {
       const n = code[1].toLowerCase() === "x" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);

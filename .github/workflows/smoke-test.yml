@@ -20,12 +20,22 @@ jobs:
         run: |
           npm start -- -p 3000 > server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:3000/ > /dev/null && break; sleep 1; done
-      - name: Open Targets schema (fields on Disease and Target)
+      - name: Open Targets schema (drug candidate types)
         run: |
-          for t in Disease Target Drug; do
-            curl -s https://api.platform.opentargets.org/api/v4/graphql -H 'Content-Type: application/json' \
-              -d "{\"query\":\"{ __type(name: \\\"$t\\\") { fields { name type { name kind ofType { name } } } } }\"}" | head -c 4000; echo
-          done
+          node -e '
+          const q = (query) => fetch("https://api.platform.opentargets.org/api/v4/graphql", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({query})}).then(r => r.json());
+          const unwrap = (t) => { while (t && !t.name) t = t.ofType; return t; };
+          const fields = async (name) => (await q(`{ __type(name: "${name}") { fields { name args { name } type { name kind ofType { name kind ofType { name kind ofType { name } } } } } } }`)).data?.__type?.fields ?? [];
+          (async () => {
+            for (const root of ["clinicalIndicationsFromDiseaseImp", "clinicalTargets"]) {
+              const f = await fields(root);
+              console.log(root, JSON.stringify(f.map(x => [x.name, x.args?.map(a=>a.name), unwrap(x.type)?.name])));
+              for (const x of f) { const t = unwrap(x.type)?.name; if (t && !/^(String|Int|Float|Boolean|ID)$/.test(t)) { const g = await fields(t); console.log("  ", x.name, t, JSON.stringify(g.map(y => [y.name, unwrap(y.type)?.name]))); for (const y of g) { const u = unwrap(y.type)?.name; if (u && !/^(String|Int|Float|Boolean|ID|Drug|Disease|Target)$/.test(u)) { const h = await fields(u); console.log("     ", y.name, u, JSON.stringify(h.map(z => [z.name, unwrap(z.type)?.name]))); } } } }
+            }
+            const sample = await q(`{ disease(efoId: "EFO_0000660") { name drugAndClinicalCandidates { count } } }`);
+            console.log("sample", JSON.stringify(sample).slice(0, 800));
+          })();
+          '
       - name: Load every tab
         run: node scripts/smoke-test.ts http://localhost:3000
       - name: Server log

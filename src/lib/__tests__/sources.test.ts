@@ -111,3 +111,15 @@ describe("label choice", () => {
     expect(l.boxedWarning).toBe("lactate levels (>5 mmol/Liter)");
   });
 });
+
+it("prefers the reference biologic over biosimilars", () => {
+  const base = toDrugLabel(demoLabel)!;
+  const humira: DrugLabel = { ...base, setId: "h", genericName: "adalimumab", brandNames: ["Humira"], applicationNumbers: ["BLA125057"], effectiveDate: "2024-01-01" };
+  const biosim: DrugLabel = { ...base, setId: "b", genericName: "adalimumab", brandNames: ["Adalimumab-Aacf"], applicationNumbers: ["BLA761219"], effectiveDate: "2026-01-01" };
+  expect(pickBestLabel([biosim, humira], "adalimumab")?.setId).toBe("h");
+});
+
+it("decodes double-encoded entities", async () => {
+  const { stripTags } = await import("../text");
+  expect(stripTags("levels &amp;gt;5 mcg/mL")).toBe("levels >5 mcg/mL");
+});

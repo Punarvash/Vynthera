@@ -95,15 +95,17 @@ export async function getManufacturerBundle(name: string): Promise<ManufacturerB
     ...new Set([...companies.filter((c) => c.isInnovator).slice(0, 2).map((c) => c.core), ...(label ? [companyCore(label.manufacturer)] : [])]),
   ].slice(0, 3);
 
+  // Short single-word names ("Sun") also match unrelated affiliations ("Sun Yat-sen University").
+  const searchable = researchCompanies.filter((c) => c.includes(" ") || c.length >= 6);
   const terms = drugTerms(drug, label);
   const drugClause = `(${terms.map((t) => `"${t}"[tiab]`).join(" OR ")})`;
-  const companyClause = `(${researchCompanies.map((c) => `"${c}"[ad] OR "${c}"[gr]`).join(" OR ")})`;
+  const companyClause = `(${searchable.map((c) => `"${c}"[ad] OR "${c}"[gr]`).join(" OR ")})`;
 
   const [trialLists, search] = await Promise.all([
     Promise.all(
       researchCompanies.map((c) => attempt("ClinicalTrials.gov", problems, [] as Trial[], () => trialsBySponsor(drug, c))),
     ),
-    researchCompanies.length
+    searchable.length
       ? attempt("PubMed", problems, { total: 0, ids: [] as string[] }, () =>
           searchPubMed(`${drugClause} AND ${companyClause} AND medline[sb]`, 25),
         )

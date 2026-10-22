@@ -138,6 +138,10 @@ export function pickBestLabel(labels: DrugLabel[], query: string): DrugLabel | n
     (l.genericName === q ? 5 : namesDrug(l, q) ? 4 : 0) +
     (l.genericName.includes(" and ") || l.genericName.includes(",") ? 0 : 2) +
     (l.applicationNumbers.some((n) => /^(NDA|BLA)/.test(n)) ? 3 : 0) +
+    // Biosimilars (351(k)) carry BLA numbers from 761000 up; the reference biologic's is lower.
+    (l.applicationNumbers.some((n) => /^BLA\d+$/.test(n) && Number(n.slice(3)) < 761000) ? 2 : 0) +
+    // A distinct brand (Humira) rather than a suffixed nonproprietary name (adalimumab-aacf).
+    (l.brandNames.some((b) => !b.toLowerCase().includes(baseDrugName(l.genericName))) ? 1 : 0) +
     (isRepackager(l.manufacturer) ? -4 : 0) +
     (l.mechanism ? 1 : 0);
   return (
