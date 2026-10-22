@@ -4,6 +4,11 @@
     "title": "NADAC (National Average Drug Acquisition Cost) 2026",
     "url": "https://download.medicaid.gov/data/nadac-national-average-drug-acquisition-cost-10-21-2026.csv",
     "asOf": "2026-10-21",
-    "rows": 6412
+    "rows": 5958
+  },
+  "prescribers": {
+    "title": "Medicare Part D Prescribers - by Provider and Drug : 2024-12-01",
+    "apiUrl": "https://data.cms.gov/data-api/v1/dataset/9552739e-3d05-4c1b-8eff-ecabf391e2e5/data",
+    "year": 2024
   }
 }
