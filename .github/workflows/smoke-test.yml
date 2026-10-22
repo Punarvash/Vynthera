@@ -20,10 +20,6 @@ jobs:
         run: |
           npm start -- -p 3000 > server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:3000/ > /dev/null && break; sleep 1; done
-      - name: Open Targets sample (type 2 diabetes)
-        run: |
-          curl -s https://api.platform.opentargets.org/api/v4/graphql -H 'Content-Type: application/json' \
-            -d '{"query":"{ disease(efoId: \"MONDO_0005148\") { name drugAndClinicalCandidates { count rows { maxClinicalStage drug { id name } } } } }"}' | head -c 1500; echo
       - name: Load every tab
         run: node scripts/smoke-test.ts http://localhost:3000
       - name: Server log
