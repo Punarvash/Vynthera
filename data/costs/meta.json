@@ -1,3 +1,9 @@
 {
-  "importedAt": ""
+  "importedAt": "2026-10-22",
+  "nadac": {
+    "title": "NADAC (National Average Drug Acquisition Cost) 2026",
+    "url": "https://download.medicaid.gov/data/nadac-national-average-drug-acquisition-cost-10-21-2026.csv",
+    "asOf": "2026-10-21",
+    "rows": 6412
+  }
 }
