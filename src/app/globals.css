@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* Vynthera palette: ink #101418, navy #2C3E50, gold #B08D57 (the single accent), sand #DCC9A6, cream #FBF6EE.
+   Badge colours are semantic (funding, approval) and chosen for WCAG AA contrast. */
+:root {
+  color-scheme: light;
+  --ink: #101418;
+  --navy: #2c3e50;
+  --navy-hover: #22313f;
+  --gold: #b08d57;
+  --gold-text: #7a5c2e;
+  --sand: #dcc9a6;
+  --cream: #fbf6ee;
+  --surface: #ffffff;
+  --muted: #4a5260;
+  --line: #e8dfcf;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-navy: var(--navy);
+  --color-navy-hover: var(--navy-hover);
+  --color-gold: var(--gold);
+  --color-gold-text: var(--gold-text);
+  --color-sand: var(--sand);
+  --color-cream: var(--cream);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-serif-display), ui-serif, Georgia, serif;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+a {
+  text-underline-offset: 3px;
+}
+
+details > summary {
+  cursor: pointer;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
