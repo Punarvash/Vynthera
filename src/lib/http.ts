@@ -38,7 +38,13 @@ async function waitForSlot(host: string): Promise<void> {
   if (at > now) await new Promise((r) => setTimeout(r, at - now));
 }
 
-async function request(source: string, url: string, init?: RequestInit): Promise<Response> {
+interface RequestOptions {
+  timeoutMs?: number;
+  /** Do not log failed responses (for lookups where failure is expected, like non-open-access full texts). */
+  quiet?: boolean;
+}
+
+async function request(source: string, url: string, init?: RequestInit, opts: RequestOptions = {}): Promise<Response> {
   if (isDemoMode()) {
     return demoResponse(url, init);
   }
@@ -50,7 +56,7 @@ async function request(source: string, url: string, init?: RequestInit): Promise
       res = await fetch(url, {
         ...init,
         headers: { "User-Agent": "Vynthera/0.1 (clinical evidence lookup)", ...init?.headers },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
       });
     } catch (err) {
       const reason = err instanceof Error && err.name === "TimeoutError" ? "timed out" : "could not be reached";
@@ -62,7 +68,7 @@ async function request(source: string, url: string, init?: RequestInit): Promise
       await new Promise((r) => setTimeout(r, Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter, 5) * 1000 : 800 * (attempt + 1)));
       continue;
     }
-    if (!res.ok && res.status !== 404) {
+    if (!res.ok && res.status !== 404 && !opts.quiet) {
       // Log the body (e.g. a GraphQL validation message) for debugging; the user sees a plain message.
       const body = await res.clone().text().catch(() => "");
       console.error(`${source} HTTP ${res.status} for ${url.replace(/api_key=[^&]+/, "api_key=***").slice(0, 200)}: ${body.slice(0, 500)}`);
@@ -78,9 +84,9 @@ async function request(source: string, url: string, init?: RequestInit): Promise
 export async function getJson<T>(
   source: string,
   url: string,
-  options: { init?: RequestInit; notFoundAs?: T } = {},
+  options: { init?: RequestInit; notFoundAs?: T } & RequestOptions = {},
 ): Promise<T> {
-  const res = await request(source, url, options.init);
+  const res = await request(source, url, options.init, options);
   if (res.status === 404 && options.notFoundAs !== undefined) {
     return options.notFoundAs;
   }
@@ -94,8 +100,8 @@ export async function getJson<T>(
   }
 }
 
-export async function getText(source: string, url: string): Promise<string> {
-  const res = await request(source, url);
+export async function getText(source: string, url: string, opts: RequestOptions = {}): Promise<string> {
+  const res = await request(source, url, undefined, opts);
   if (!res.ok) {
     throw new SourceError(source, `responded with HTTP ${res.status}`, res.status);
   }

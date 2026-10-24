@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractBlinding, extractSampleSize, isAboutCondition, isAboutDrug, isCochrane } from "../study-features";
-import { parsePubMedXml, uninvert } from "../sources/pubmed";
+import { meshFromTranslation, parsePubMedXml, uninvert } from "../sources/pubmed";
 import { parseDisclosures } from "../sources/europepmc";
 import { fundingFromStatement } from "../funding";
 import { parsePrimaryOutcome, trialOrder } from "../sources/clinicaltrials";
@@ -51,6 +51,13 @@ describe("PubMed record details", () => {
   });
   it("flags retracted papers", () => {
     expect(b.retracted).toBe(true);
+  });
+  it("reads the MeSH headings PubMed mapped a query to", () => {
+    expect(meshFromTranslation([
+      { from: "T2DM", to: '"diabetes mellitus, type 2"[MeSH Terms] OR ("diabetes"[All Fields] AND "type 2"[All Fields]) OR "t2dm"[All Fields]' },
+      { from: "metformin", to: '"metformin"[MeSH Terms] OR "metformin"[All Fields]' },
+    ])).toEqual(["diabetes mellitus, type 2", "metformin"]);
+    expect(meshFromTranslation(undefined)).toEqual([]);
   });
   it("turns inverted MeSH terms into natural phrases", () => {
     expect(uninvert("Diabetes Mellitus, Type 2")).toBe("type 2 diabetes mellitus");

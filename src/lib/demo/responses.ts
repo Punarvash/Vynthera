@@ -168,7 +168,7 @@ export function demoResponse(url: string, init?: RequestInit): Response {
         const years = [2008, 2012, 2015, 2015, 2018, 2019, 2019, 2020, 2021, 2021, 2022, 2023, 2023, 2024, 2024, 2024, 2025];
         return json({
           hitCount: years.length,
-          resultList: { result: years.map((y, i) => ({ pmid: String(90000001 + (i % 4)), pubYear: String(y), citedByCount: 40 - i })) },
+          resultList: { result: years.map((y, i) => ({ pmid: String(90000001 + (i % 4)), pubYear: String(y), citedByCount: 40 - i, isOpenAccess: "Y", pmcid: `PMC${90000001 + (i % 4)}` })) },
         });
       }
       return json(isDemoDrug ? demoPreprints : { hitCount: 0, resultList: { result: [] } });

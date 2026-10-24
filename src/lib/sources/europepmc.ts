@@ -73,17 +73,19 @@ export async function searchPreprints(drugTerms: string[], condition: string | u
 
 interface LiteResponse {
   hitCount?: number;
-  resultList?: { result?: { pmid?: string; pubYear?: string; citedByCount?: number }[] };
+  resultList?: { result?: { pmid?: string; pubYear?: string; citedByCount?: number; isOpenAccess?: string; pmcid?: string }[] };
 }
 
 export interface LiteratureProfile {
   /** All matching PubMed records in Europe PMC. */
   total: number;
-  /** Records counted in byYear (at most 1,000 of the most relevant). */
+  /** Records counted in byYear (at most 500 of the most relevant). */
   sampled: number;
   byYear: Record<string, number>;
   /** Times cited, keyed by PMID. */
   citations: Record<string, number>;
+  /** PMIDs whose full text is open access in Europe PMC (others have no reusable full text). */
+  openAccess: string[];
 }
 
 /** Publications per year and citation counts for the drug (and condition), in one request. */
@@ -92,16 +94,18 @@ export async function literatureProfile(drugTerms: string[], condition: string |
   cacheLife("days");
   const drug = `(${drugTerms.map((t) => `TITLE_ABS:${term(t)}`).join(" OR ")})`;
   const query = `${drug}${condition ? ` AND TITLE_ABS:${term(condition)}` : ""} AND SRC:MED`;
-  const url = `${BASE}?format=json&resultType=lite&pageSize=1000&query=${encodeURIComponent(query)}`;
-  const data = await getJson<LiteResponse>(SOURCE, url);
+  const url = `${BASE}?format=json&resultType=lite&pageSize=500&query=${encodeURIComponent(query)}`;
+  const data = await getJson<LiteResponse>(SOURCE, url, { timeoutMs: 15000 });
   const rows = data.resultList?.result ?? [];
   const byYear: Record<string, number> = {};
   const citations: Record<string, number> = {};
+  const openAccess: string[] = [];
   for (const r of rows) {
+    if (r.pmid && r.isOpenAccess === "Y" && r.pmcid) openAccess.push(r.pmid);
     if (r.pubYear) byYear[r.pubYear] = (byYear[r.pubYear] ?? 0) + 1;
     if (r.pmid && typeof r.citedByCount === "number") citations[r.pmid] = r.citedByCount;
   }
-  return { total: data.hitCount ?? rows.length, sampled: rows.length, byYear, citations };
+  return { total: data.hitCount ?? rows.length, sampled: rows.length, byYear, citations, openAccess };
 }
 
 export interface FullTextDisclosures {
@@ -141,7 +145,7 @@ export async function fullTextDisclosures(pmcid: string): Promise<FullTextDisclo
   if (!/^PMC\d+$/.test(pmcid)) return null;
   const url = `https://www.ebi.ac.uk/europepmc/webservices/rest/${pmcid}/fullTextXML`;
   try {
-    return parseDisclosures(await getText(SOURCE, url));
+    return parseDisclosures(await getText(SOURCE, url, { quiet: true }));
   } catch {
     // Many PMC articles have no reusable full text; that is not an outage.
     return null;

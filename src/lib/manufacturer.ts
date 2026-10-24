@@ -106,10 +106,10 @@ export async function getManufacturerBundle(name: string): Promise<ManufacturerB
       researchCompanies.map((c) => attempt("ClinicalTrials.gov", problems, [] as Trial[], () => trialsBySponsor(drug, c))),
     ),
     searchable.length
-      ? attempt("PubMed", problems, { total: 0, ids: [] as string[] }, () =>
+      ? attempt("PubMed", problems, { total: 0, ids: [] as string[], meshTerms: [] as string[] }, () =>
           searchPubMed(`${drugClause} AND ${companyClause} AND medline[sb]`, 25),
         )
-      : Promise.resolve({ total: 0, ids: [] as string[] }),
+      : Promise.resolve({ total: 0, ids: [] as string[], meshTerms: [] as string[] }),
   ]);
 
   const seen = new Set<string>();

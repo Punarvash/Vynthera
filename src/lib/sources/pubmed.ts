@@ -70,10 +70,20 @@ export function buildQuery(
 }
 
 interface ESearchResponse {
-  esearchresult?: { count?: string; idlist?: string[] };
+  esearchresult?: { count?: string; idlist?: string[]; translationset?: { from?: string; to?: string }[] };
 }
 
-export async function searchPubMed(term: string, retmax: number, retstart = 0): Promise<{ total: number; ids: string[] }> {
+/** MeSH headings PubMed mapped the query's words to, e.g. "T2DM" -> "diabetes mellitus, type 2". */
+export function meshFromTranslation(set: { from?: string; to?: string }[] | undefined): string[] {
+  const terms = (set ?? []).flatMap((t) => [...(t.to ?? "").matchAll(/"([^"]+)"\[MeSH Terms\]/gi)].map((m) => m[1].toLowerCase()));
+  return [...new Set(terms)];
+}
+
+export async function searchPubMed(
+  term: string,
+  retmax: number,
+  retstart = 0,
+): Promise<{ total: number; ids: string[]; meshTerms: string[] }> {
   "use cache";
   cacheLife("days");
   const url = `${BASE}/esearch.fcgi?db=pubmed&retmode=json&sort=relevance&retmax=${retmax}&retstart=${retstart}&term=${encodeURIComponent(term)}${commonParams()}`;
@@ -81,6 +91,7 @@ export async function searchPubMed(term: string, retmax: number, retstart = 0): 
   return {
     total: Number(data.esearchresult?.count ?? 0),
     ids: data.esearchresult?.idlist ?? [],
+    meshTerms: meshFromTranslation(data.esearchresult?.translationset),
   };
 }
 
@@ -222,7 +233,8 @@ export async function meshSynonyms(condition: string): Promise<string[]> {
   cacheLife("weeks");
   const search = await getJson<ESearchResponse>(
     SOURCE,
-    `${BASE}/esearch.fcgi?db=mesh&retmode=json&retmax=1&term=${encodeURIComponent(`${quoted(condition)}[MeSH Terms]`)}${commonParams()}`,
+    // Untagged, so abbreviations like "T2DM" still find their heading.
+    `${BASE}/esearch.fcgi?db=mesh&retmode=json&retmax=1&term=${encodeURIComponent(mappable(condition))}${commonParams()}`,
   );
   const uid = search.esearchresult?.idlist?.[0];
   if (!uid) return [];

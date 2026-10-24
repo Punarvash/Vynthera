@@ -14,6 +14,7 @@ import {
   fetchPubMed,
   meshSynonyms,
   searchPubMed,
+  uninvert,
 } from "./sources/pubmed";
 import { fullTextDisclosures, literatureProfile, searchPreprints, type LiteratureProfile } from "./sources/europepmc";
 import { searchTrials, trialOrder, trialResult, trialsByIds } from "./sources/clinicaltrials";
@@ -91,7 +92,7 @@ async function literature(
   const terms = drugTerms(name, label);
   const run = (therapy: boolean) => searchPubMed(buildQuery(terms, condition, typeFilter, { therapy }), retmax, options.retstart ?? 0);
   const [first, preprints] = await Promise.all([
-    attempt("PubMed", problems, { total: 0, ids: [] as string[] }, () => run(Boolean(options.therapy))),
+    attempt("PubMed", problems, { total: 0, ids: [] as string[], meshTerms: [] as string[] }, () => run(Boolean(options.therapy))),
     options.preprints === false
       ? Promise.resolve([] as Article[])
       : attempt("Europe PMC", problems, [] as Article[], () => searchPreprints(terms, condition)),
@@ -99,11 +100,13 @@ async function literature(
   // The therapy filter is a precision aid; if it removes everything, fall back to the plain search.
   const search =
     options.therapy && first.total === 0
-      ? await attempt("PubMed", problems, { total: 0, ids: [] as string[] }, () => run(false))
+      ? await attempt("PubMed", problems, { total: 0, ids: [] as string[], meshTerms: [] as string[] }, () => run(false))
       : first;
   const fetched = await attempt("PubMed", problems, [] as Article[], () => fetchPubMed(search.ids));
   const mark = (a: Article) => ({ ...a, aboutDrug: isAboutDrug(a, terms) });
-  return { total: search.total, articles: fetched.map(mark), preprints: preprints.map(mark), terms };
+  // MeSH headings PubMed mapped the condition to (drug headings removed), a backup source of synonyms.
+  const conditionMesh = search.meshTerms.filter((m) => !terms.some((t) => m.includes(t)));
+  return { total: search.total, articles: fetched.map(mark), preprints: preprints.map(mark), terms, conditionMesh };
 }
 
 /** Full PubMed counts by design for studies where the drug is a main topic. */
@@ -129,9 +132,16 @@ async function designCounts(terms: string[], condition: string | undefined, prob
 }
 
 /** Add funding found in open-access full texts, for studies the registry and PubMed record left unlabelled. */
-async function withFullTextFunding(articles: Article[], label: DrugLabel | null, limit = 20): Promise<Article[]> {
+async function withFullTextFunding(
+  articles: Article[],
+  label: DrugLabel | null,
+  profile: LiteratureProfile | null,
+  limit = 12,
+): Promise<Article[]> {
   const manufacturers = label ? [label.manufacturer] : [];
-  const targets = articles.filter((a) => a.pmcid && a.funding.kind === "unreported").slice(0, limit);
+  // Only open-access articles have a reusable full text; asking for others just fails slowly.
+  const open = new Set(profile?.openAccess ?? []);
+  const targets = articles.filter((a) => a.pmcid && a.pmid && open.has(a.pmid) && a.funding.kind === "unreported").slice(0, limit);
   const disclosures = new Map<string, Awaited<ReturnType<typeof fullTextDisclosures>>>();
   for (let i = 0; i < targets.length; i += 4) {
     const batch = targets.slice(i, i + 4);
@@ -193,7 +203,7 @@ export async function getEvidence(name: string, condition: string | undefined): 
   const drug = label ? baseDrugName(label.genericName) : name.toLowerCase();
   const terms = drugTerms(drug, label);
 
-  const [lit, counts, trialSearch, profile, synonyms] = await Promise.all([
+  const [lit, counts, trialSearch, profile, meshEntryTerms] = await Promise.all([
     literature(drug, condition, EVIDENCE_TYPES, PAGE_SIZE, problems, label, { therapy: true }),
     designCounts(terms, condition, problems),
     attempt("ClinicalTrials.gov", problems, { total: 0, trials: [] as Trial[] }, () => searchTrials(drug, condition)),
@@ -201,8 +211,10 @@ export async function getEvidence(name: string, condition: string | undefined): 
     condition ? attempt("PubMed", problems, [] as string[], () => meshSynonyms(condition)) : Promise.resolve([] as string[]),
   ]);
 
+  const synonyms = [...new Set([...meshEntryTerms, ...lit.conditionMesh.flatMap((m) => [m, uninvert(m)])])];
+
   let studies = await withFunding(lit.articles, label, problems);
-  studies = await withFullTextFunding(studies, label);
+  studies = await withFullTextFunding(studies, label, profile);
   studies = orderStudies(withCitations(studies, profile));
 
   // Direction of effect for the main-topic studies, when an AI key is configured.
@@ -273,9 +285,9 @@ export async function getMoreStudies(name: string, condition: string | undefined
     preprints: false,
   });
   if (problems.length) throw new Error("PubMed is not responding right now.");
-  const studies = await withFullTextFunding(await withFunding(lit.articles, label, problems), label, 10);
   const terms = drugTerms(drug, label);
   const profile = await literatureProfile(terms, condition).catch(() => null);
+  const studies = await withFullTextFunding(await withFunding(lit.articles, label, problems), label, profile, 8);
   return orderStudies(withCitations(studies, profile));
 }
 
@@ -294,7 +306,8 @@ export async function getCases(name: string, condition: string | undefined): Pro
   const drug = label ? baseDrugName(label.genericName) : name.toLowerCase();
   const lit = await literature(drug, condition, CASE_TYPES, 30, problems, label);
   // Case reports about the drug come before ones that only mention it.
-  const cases = orderStudies(await withFullTextFunding(await withFunding(lit.articles, label, problems), label, 10));
+  const profile = await literatureProfile(lit.terms, condition).catch(() => null);
+  const cases = orderStudies(withCitations(await withFullTextFunding(await withFunding(lit.articles, label, problems), label, profile, 8), profile));
   const preprints = (await withFunding(lit.preprints, label, problems)).filter(
     (a) => a.design === "case-report" || a.design === "case-series",
   );
