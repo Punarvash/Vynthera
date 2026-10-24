@@ -81,11 +81,15 @@ function sourcesFor(bundle: EvidenceBundle): SourceForPrompt[] {
   return out;
 }
 
+/** Journal notices that some abstracts end with, e.g. "NO LEVEL ASSIGNED: This journal requires…". */
+export const BOILERPLATE = /\b(LEVEL OF EVIDENCE|LEVEL ASSIGNED|EVIDENCE LEVEL)\b|this journal requires|copyright|all rights reserved|©/i;
+
 /** The closing sentences of an abstract, where conclusions usually are. */
-function lastSentences(text: string, n: number): string {
-  const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g) ?? [text];
+export function lastSentences(text: string, n: number): string {
+  const sentences = (text.match(/[^.!?]+[.!?]+(\s|$)/g) ?? [text]).filter((s) => !BOILERPLATE.test(s));
   return sentences.slice(-n).join("").trim();
 }
+
 
 function extractive(bundle: EvidenceBundle, note: string): EvidenceSummary {
   const drug = bundle.drug.toLowerCase();
@@ -96,7 +100,7 @@ function extractive(bundle: EvidenceBundle, note: string): EvidenceSummary {
     .filter((a) => a.conclusion || a.abstract)
     .slice(0, 4)
     .map((a) => ({
-      text: truncate(a.conclusion ?? lastSentences(a.abstract, 2), 320),
+      text: truncate((a.conclusion && !BOILERPLATE.test(a.conclusion) ? a.conclusion : lastSentences(a.abstract, 2)) || a.title, 320),
       sources: [{ id: a.id, label: `${a.authors.split(",")[0] || "Study"} ${a.year}`.trim(), url: a.url }],
     }));
   return { mode: "extractive", findings, note };

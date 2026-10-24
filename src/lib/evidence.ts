@@ -19,6 +19,7 @@ import {
 import { fullTextDisclosures, literatureProfile, searchPreprints, type LiteratureProfile } from "./sources/europepmc";
 import { searchTrials, trialOrder, trialResult, trialsByIds } from "./sources/clinicaltrials";
 import { drugMechanisms } from "./sources/opentargets";
+import { abbreviationSynonyms } from "./condition-synonyms";
 import type {
   Article,
   DesignCounts,
@@ -211,7 +212,7 @@ export async function getEvidence(name: string, condition: string | undefined): 
     condition ? attempt("PubMed", problems, [] as string[], () => meshSynonyms(condition)) : Promise.resolve([] as string[]),
   ]);
 
-  const synonyms = [...new Set([...meshEntryTerms, ...lit.conditionMesh.flatMap((m) => [m, uninvert(m)])])];
+  const synonyms = [...new Set([...(condition ? abbreviationSynonyms(condition) : []), ...meshEntryTerms, ...lit.conditionMesh.flatMap((m) => [m, uninvert(m)])])];
 
   let studies = await withFunding(lit.articles, label, problems);
   studies = await withFullTextFunding(studies, label, profile);

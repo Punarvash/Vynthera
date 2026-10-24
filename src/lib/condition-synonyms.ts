@@ -1,0 +1,68 @@
+/**
+ * Common clinical abbreviations and the phrases FDA labels and MeSH use for them.
+ * PubMed's own mapping misses many of these, so the off-label check and the
+ * indirectness check would otherwise treat "T2DM" as a different condition.
+ */
+const ABBREVIATIONS: Record<string, string[]> = {
+  t2dm: ["type 2 diabetes mellitus", "diabetes mellitus type 2", "type 2 diabetes"],
+  t2d: ["type 2 diabetes mellitus", "diabetes mellitus type 2", "type 2 diabetes"],
+  t1dm: ["type 1 diabetes mellitus", "diabetes mellitus type 1", "type 1 diabetes"],
+  t1d: ["type 1 diabetes mellitus", "diabetes mellitus type 1", "type 1 diabetes"],
+  pcos: ["polycystic ovary syndrome", "polycystic ovarian syndrome"],
+  ra: ["rheumatoid arthritis"],
+  ms: ["multiple sclerosis"],
+  rrms: ["relapsing multiple sclerosis", "relapsing remitting multiple sclerosis"],
+  copd: ["chronic obstructive pulmonary disease"],
+  ckd: ["chronic kidney disease"],
+  ibd: ["inflammatory bowel disease"],
+  uc: ["ulcerative colitis"],
+  cd: ["crohn's disease", "crohn disease"],
+  nash: ["nonalcoholic steatohepatitis", "metabolic dysfunction associated steatohepatitis"],
+  mash: ["metabolic dysfunction associated steatohepatitis", "nonalcoholic steatohepatitis"],
+  nafld: ["nonalcoholic fatty liver disease"],
+  gerd: ["gastroesophageal reflux disease"],
+  adhd: ["attention deficit hyperactivity disorder"],
+  mdd: ["major depressive disorder"],
+  gad: ["generalized anxiety disorder"],
+  ptsd: ["post traumatic stress disorder", "posttraumatic stress disorder"],
+  ocd: ["obsessive compulsive disorder"],
+  hf: ["heart failure"],
+  hfref: ["heart failure with reduced ejection fraction", "heart failure"],
+  hfpef: ["heart failure with preserved ejection fraction", "heart failure"],
+  af: ["atrial fibrillation"],
+  afib: ["atrial fibrillation"],
+  cad: ["coronary artery disease"],
+  htn: ["hypertension"],
+  dvt: ["deep vein thrombosis"],
+  pe: ["pulmonary embolism"],
+  vte: ["venous thromboembolism"],
+  sle: ["systemic lupus erythematosus"],
+  psa: ["psoriatic arthritis"],
+  as: ["ankylosing spondylitis"],
+  hs: ["hidradenitis suppurativa"],
+  ad: ["atopic dermatitis"],
+  aml: ["acute myeloid leukemia"],
+  all: ["acute lymphoblastic leukemia"],
+  cll: ["chronic lymphocytic leukemia"],
+  cml: ["chronic myeloid leukemia"],
+  nsclc: ["non small cell lung cancer", "non-small cell lung cancer"],
+  sclc: ["small cell lung cancer"],
+  rcc: ["renal cell carcinoma"],
+  hcc: ["hepatocellular carcinoma"],
+  crc: ["colorectal cancer"],
+  hiv: ["hiv-1 infection", "human immunodeficiency virus"],
+  hcv: ["hepatitis c", "chronic hepatitis c"],
+  hbv: ["hepatitis b", "chronic hepatitis b"],
+  uti: ["urinary tract infection"],
+  bph: ["benign prostatic hyperplasia"],
+  ed: ["erectile dysfunction"],
+  osa: ["obstructive sleep apnea"],
+  als: ["amyotrophic lateral sclerosis"],
+  pah: ["pulmonary arterial hypertension"],
+  ipf: ["idiopathic pulmonary fibrosis"],
+};
+
+/** Expanded phrases for a condition written as a known abbreviation (case-insensitive), else []. */
+export function abbreviationSynonyms(condition: string): string[] {
+  return ABBREVIATIONS[condition.trim().toLowerCase().replace(/[\s.-]/g, "")] ?? [];
+}
