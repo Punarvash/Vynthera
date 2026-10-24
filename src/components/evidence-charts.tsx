@@ -91,7 +91,9 @@ export function PublicationTimeline({ byYear, total, sampled }: { byYear: Record
         <span>{thisYear}</span>
       </div>
       <p className="mt-2 text-sm text-muted">
-        PubMed records in Europe PMC mentioning the drug{sampled < total ? `; the ${sampled.toLocaleString("en-US")} most relevant of ${total.toLocaleString("en-US")}` : ""}.
+        {sampled < total
+          ? `PubMed records in Europe PMC mentioning the drug; the ${sampled.toLocaleString("en-US")} most relevant of ${total.toLocaleString("en-US")}.`
+          : `All ${total.toLocaleString("en-US")} PubMed records in Europe PMC mentioning the drug. ${thisYear} is counted so far.`}
       </p>
       <TableView caption="Publications per year" rows={years.map((y, i) => [String(y), values[i]] as [string, number]).filter(([, v]) => v > 0)} />
     </figure>

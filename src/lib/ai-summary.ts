@@ -2,9 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { cacheLife } from "next/cache";
 import { z } from "zod";
-import { DESIGN_LABEL } from "./design";
+import { compareDesign, DESIGN_LABEL } from "./design";
+import { isAboutCondition } from "./study-features";
 import { truncate } from "./text";
 import type { EvidenceBundle } from "./evidence";
+import type { Article } from "./types";
 import { claudeEnabled, claudeModel } from "./claude";
 
 export interface SummarySource {
@@ -92,17 +94,23 @@ export function lastSentences(text: string, n: number): string {
 
 
 function extractive(bundle: EvidenceBundle, note: string): EvidenceSummary {
-  const drug = bundle.drug.toLowerCase();
-  const ranked = [...mainStudies(bundle)].sort(
-    (a, b) => Number(!a.title.toLowerCase().includes(drug)) - Number(!b.title.toLowerCase().includes(drug)),
+  const names = [bundle.drug, ...(bundle.label?.brandNames ?? [])].map((n) => n.toLowerCase());
+  const phrases = bundle.condition ? [bundle.condition, ...bundle.synonyms] : [];
+  const quoteOf = (a: Article) => (a.conclusion && !BOILERPLATE.test(a.conclusion) ? a.conclusion : lastSentences(a.abstract, 2));
+  // Only conclusions that are about this drug (a statin review that mentions metformin is not quoted), and
+  // for a condition, studies about that condition; then reviews before trials, Cochrane first, newest first.
+  const candidates = mainStudies(bundle)
+    .map((a) => ({ a, quote: quoteOf(a) }))
+    .filter(({ quote }) => quote && names.some((n) => quote.toLowerCase().includes(n)))
+    .filter(({ a }) => phrases.length === 0 || isAboutCondition(a, phrases));
+  const ranked = candidates.sort(
+    ({ a }, { a: b }) =>
+      compareDesign(a.design, b.design) || Number(b.cochrane) - Number(a.cochrane) || b.year.localeCompare(a.year),
   );
-  const findings = ranked
-    .filter((a) => a.conclusion || a.abstract)
-    .slice(0, 4)
-    .map((a) => ({
-      text: truncate((a.conclusion && !BOILERPLATE.test(a.conclusion) ? a.conclusion : lastSentences(a.abstract, 2)) || a.title, 320),
-      sources: [{ id: a.id, label: `${a.authors.split(",")[0] || "Study"} ${a.year}`.trim(), url: a.url }],
-    }));
+  const findings = ranked.slice(0, 4).map(({ a, quote }) => ({
+    text: truncate(quote, 320),
+    sources: [{ id: a.id, label: `${a.authors.split(",")[0] || "Study"} ${a.year}`.trim(), url: a.url }],
+  }));
   return { mode: "extractive", findings, note };
 }
 
@@ -130,7 +138,7 @@ async function callClaude(drug: string, condition: string | undefined, certainty
 }
 
 /**
- * AI summary when an Anthropic API key is configured; otherwise the conclusions quoted
+ * AI summary when Claude is configured; otherwise the conclusions quoted
  * from the top study abstracts. Only public literature is sent to the model, never patient data.
  */
 export async function summarizeEvidence(bundle: EvidenceBundle): Promise<EvidenceSummary> {
@@ -138,7 +146,7 @@ export async function summarizeEvidence(bundle: EvidenceBundle): Promise<Evidenc
     return extractive(bundle, "No peer-reviewed studies to summarize.");
   }
   if (!claudeEnabled()) {
-    return extractive(bundle, "Conclusions quoted from the top study abstracts. AI summaries switch on once an Anthropic API key is added.");
+    return extractive(bundle, "Conclusions quoted from the strongest studies of this drug.");
   }
   const sources = sourcesFor(bundle);
   try {

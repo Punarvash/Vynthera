@@ -1,4 +1,5 @@
 import { cacheLife } from "next/cache";
+import { abbreviationSynonyms } from "../condition-synonyms";
 import { getJson } from "../http";
 import type { SponsorClass, Trial, TrialOutcome } from "../types";
 
@@ -69,7 +70,9 @@ export async function searchTrials(
 ): Promise<{ total: number; trials: Trial[] }> {
   "use cache";
   cacheLife("days");
-  const cond = condition ? `&query.cond=${encodeURIComponent(condition)}` : "";
+  // Abbreviations are expanded ("T2DM" OR "type 2 diabetes mellitus"); the registry adds its own synonyms.
+  const conds = condition ? [condition, ...abbreviationSynonyms(condition)].map((c) => `"${c.replace(/"/g, "")}"`) : [];
+  const cond = conds.length ? `&query.cond=${encodeURIComponent(conds.join(" OR "))}` : "";
   const url = `${BASE}?format=json&countTotal=true&pageSize=${pageSize}&query.intr=${encodeURIComponent(drug)}${cond}&fields=${FIELDS}`;
   const data = await getJson<RawResponse>(SOURCE, url);
   return { total: data.totalCount ?? 0, trials: parse(data) };

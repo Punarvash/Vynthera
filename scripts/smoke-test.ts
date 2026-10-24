@@ -16,6 +16,12 @@ const pages: [string, string][] = [
   ["no condition", "/drug/semaglutide?tab=evidence"],
   ["ophthalmic cases", "/search?q=riboflavin&condition=keratoconus"],
   ["ophthalmic cases tab", "/drug/riboflavin?condition=keratoconus&tab=cases"],
+  ["antibiotic: otitis media", "/drug/amoxicillin?condition=otitis+media&tab=evidence"],
+  ["antibiotic: strep throat", "/drug/amoxicillin?condition=strep+throat&tab=evidence"],
+  ["antibiotic: manufacturer", "/drug/amoxicillin?tab=manufacturer"],
+  ["antibiotic: patient", "/drug/amoxicillin?condition=sinusitis&tab=patient"],
+  ["everyday name", "/drug/atorvastatin?condition=high+cholesterol&tab=evidence"],
+  ["off-label check", "/drug/sertraline?condition=premature+ejaculation&tab=evidence"],
 ];
 
 function text(html: string): string {

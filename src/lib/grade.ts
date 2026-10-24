@@ -1,5 +1,5 @@
 import { isAboutCondition } from "./study-features";
-import type { Article, DesignCounts, GradeAssessment, GradeDomain, GradeLevel, LabelStatus, Trial } from "./types";
+import type { Article, DesignCounts, GradeAssessment, GradeDomain, GradeLevel, LabelStatus, PublishedRating, Trial } from "./types";
 
 // GRADE (Grading of Recommendations, Assessment, Development and Evaluation) is the single
 // grading scale used across Vynthera. Definitions follow the GRADE Handbook, section 5.
@@ -140,7 +140,7 @@ export function assessGrade(input: GradeInput): GradeAssessment {
       domains.push(domain("Inconsistency", "no-concern", `Results agree in direction: ${favors} favour the drug, ${neutral} show no difference, ${against} favour the comparison.`));
     }
   } else {
-    domains.push(domain("Inconsistency", "not-assessed", "Comparing results across studies needs AI reading of each abstract (add an Anthropic API key)."));
+    domains.push(domain("Inconsistency", "not-assessed", "Whether study results agree could not be checked automatically. Compare the conclusions of the studies below."));
   }
 
   // Indirectness: are the studies mainly about this condition?
@@ -181,12 +181,45 @@ export function assessGrade(input: GradeInput): GradeAssessment {
   }
 
   const downgrades = Math.min(3, domains.filter((d) => d.status === "downgraded").length);
-  const level = ORDER[Math.min(ORDER.length - 1, ORDER.indexOf(start) + downgrades)];
+  let level = ORDER[Math.min(ORDER.length - 1, ORDER.indexOf(start) + downgrades)];
   if (downgrades > 0) {
     const names = domains.filter((d) => d.status === "downgraded").map((d) => d.name.toLowerCase());
     rationale.push(`Lowered ${plural(downgrades, "level")} for ${names.join(", ")}.`);
   }
-  return { level, ...DEFINITIONS[level], startLevel: start, rationale, domains };
+
+  // Reviewers who graded the evidence themselves read the full trials, so their ratings set the bounds.
+  const published = publishedRatings(reviews, conditionPhrases);
+  if (published.length) {
+    const levels = published.flatMap((p) => p.levels).map((l) => ORDER.indexOf(l));
+    const best = ORDER[Math.min(...levels)];
+    const worst = ORDER[Math.max(...levels)];
+    const who = published.some((p) => p.cochrane) ? "Cochrane and other systematic reviews" : "Systematic reviews";
+    if (ORDER.indexOf(level) < ORDER.indexOf(best)) {
+      rationale.push(`Set to ${DEFINITIONS[best].label} to match the published ratings: ${who.toLowerCase()} of this use rate the evidence at most ${DEFINITIONS[best].label.toLowerCase()}.`);
+      level = best;
+    } else if (ORDER.indexOf(level) > ORDER.indexOf(worst)) {
+      rationale.push(`Set to ${DEFINITIONS[worst].label} to match the published ratings: ${who.toLowerCase()} of this use rate the evidence at least ${DEFINITIONS[worst].label.toLowerCase()}.`);
+      level = worst;
+    } else {
+      rationale.push(`Consistent with the published ratings from ${who.toLowerCase()} of this use.`);
+    }
+  }
+  return { level, ...DEFINITIONS[level], startLevel: start, rationale, domains, published };
+}
+
+/** Reviews of this condition whose abstracts state GRADE ratings; Cochrane first, then newest. */
+export function publishedRatings(reviews: Article[], conditionPhrases: string[]): PublishedRating[] {
+  return reviews
+    .filter((a) => a.statedCertainty?.length && isAboutCondition(a, conditionPhrases))
+    .sort((a, b) => Number(b.cochrane) - Number(a.cochrane) || b.year.localeCompare(a.year))
+    .slice(0, 5)
+    .map((a) => ({
+      id: a.id,
+      label: `${a.authors.split(",")[0] || "Review"} ${a.year}`.trim(),
+      url: a.url,
+      cochrane: a.cochrane,
+      levels: a.statedCertainty ?? [],
+    }));
 }
 
 /** GRADE's standard wording for a finding at each certainty level. */

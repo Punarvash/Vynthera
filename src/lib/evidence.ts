@@ -3,7 +3,7 @@ import { classifyFunding, fundingFromStatement } from "./funding";
 import { assessGrade, countsFromStudies, uncertaintyStatement, verdict } from "./grade";
 import { assessLabelStatus } from "./label-status";
 import { compareDesign } from "./design";
-import { assessDirections } from "./ai-assess";
+import { assessDirections, indicationQuote } from "./ai-assess";
 import { isAboutDrug } from "./study-features";
 import { baseDrugName, getLabel } from "./sources/openfda";
 import {
@@ -110,6 +110,11 @@ async function literature(
   return { total: search.total, articles: fetched.map(mark), preprints: preprints.map(mark), terms, conditionMesh };
 }
 
+async function cochraneReviews(terms: string[], condition: string): Promise<Article[]> {
+  const r = await searchPubMed(buildQuery(terms, condition, '"Cochrane Database Syst Rev"[ta]'), 5);
+  return r.ids.length ? fetchPubMed(r.ids) : [];
+}
+
 /** Full PubMed counts by design for studies where the drug is a main topic. */
 async function designCounts(terms: string[], condition: string | undefined, problems: SourceProblem[]): Promise<DesignCounts | null> {
   const entries = Object.entries(COUNT_FILTERS) as [keyof DesignCounts, string][];
@@ -204,17 +209,21 @@ export async function getEvidence(name: string, condition: string | undefined): 
   const drug = label ? baseDrugName(label.genericName) : name.toLowerCase();
   const terms = drugTerms(drug, label);
 
-  const [lit, counts, trialSearch, profile, meshEntryTerms] = await Promise.all([
+  const [lit, counts, trialSearch, profile, meshEntryTerms, cochrane] = await Promise.all([
     literature(drug, condition, EVIDENCE_TYPES, PAGE_SIZE, problems, label, { therapy: true }),
     designCounts(terms, condition, problems),
     attempt("ClinicalTrials.gov", problems, { total: 0, trials: [] as Trial[] }, () => searchTrials(drug, condition)),
     attempt("Europe PMC", problems, null as LiteratureProfile | null, () => literatureProfile(terms, condition)),
     condition ? attempt("PubMed", problems, [] as string[], () => meshSynonyms(condition)) : Promise.resolve([] as string[]),
+    // Cochrane reviews of this use, so the most rigorous graded evidence is never missed by relevance ranking.
+    condition ? attempt("PubMed", problems, [] as Article[], () => cochraneReviews(terms, condition)) : Promise.resolve([] as Article[]),
   ]);
 
   const synonyms = [...new Set([...(condition ? abbreviationSynonyms(condition) : []), ...meshEntryTerms, ...lit.conditionMesh.flatMap((m) => [m, uninvert(m)])])];
 
-  let studies = await withFunding(lit.articles, label, problems);
+  const known = new Set(lit.articles.map((a) => a.id));
+  const extra = cochrane.filter((a) => !known.has(a.id)).map((a) => ({ ...a, aboutDrug: isAboutDrug(a, terms) }));
+  let studies = await withFunding([...lit.articles, ...extra], label, problems);
   studies = await withFullTextFunding(studies, label, profile);
   studies = orderStudies(withCitations(studies, profile));
 
@@ -235,7 +244,13 @@ export async function getEvidence(name: string, condition: string | undefined): 
   const preprints = (await withFunding(lit.preprints, label, problems)).filter((a) =>
     ["meta-analysis", "systematic-review", "rct", "clinical-trial", "observational", "other"].includes(a.design),
   );
-  const labelStatus = assessLabelStatus(label, condition, synonyms);
+  let labelStatus = assessLabelStatus(label, condition, synonyms);
+  if (labelStatus.kind === "off-label" && label && condition) {
+    // Wording the text match cannot connect to the condition; Claude reads the indications, and its quote is checked against the label.
+    const [indicated] = label.indications.split(/limitations?\s+of\s+use/i);
+    const quote = await indicationQuote(drug, condition, indicated);
+    if (quote) labelStatus = { kind: "likely-approved", matched: quote, byAi: true };
+  }
   const fullCounts = counts ?? countsFromStudies(studies.filter((a) => a.aboutDrug));
   const grade = assessGrade({
     condition,

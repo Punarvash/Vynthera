@@ -241,7 +241,6 @@ export async function PatientTab({ drug, condition }: { drug: string; condition?
 
       <p className="text-sm text-muted">
         This handout is general information, not medical advice. Follow your doctor&apos;s instructions about your dose.
-        {plain.mode === "basic" && " A fuller plain-language summary appears here once AI summaries are turned on."}
       </p>
     </article>
   );

@@ -27,6 +27,36 @@ export function extractBlinding(text: string): "blinded" | "open-label" | undefi
   return undefined;
 }
 
+export type StatedCertainty = "high" | "moderate" | "low" | "very-low";
+
+const LEVEL = "(very[ -]low|low|moderate|high)";
+const STATED = [
+  new RegExp(`\\b${LEVEL}[ -](?:quality|certainty|certain)(?:\\s+of)?(?:\\s+the)?\\s+evidence`, "gi"),
+  new RegExp(`\\b(?:quality|certainty) of (?:the )?evidence (?:was|is|were|ranged from|as) ${LEVEL}`, "gi"),
+  new RegExp(`\\bevidence (?:quality|certainty) (?:was|is|were) ${LEVEL}`, "gi"),
+  new RegExp(`\\bevidence (?:was|is|were) (?:of |rated (?:as )?)?${LEVEL}(?: quality| certainty)\\b`, "gi"),
+  new RegExp(`\\bGRADE[:)]?\\s*(?:certainty\\s*)?:?\\s*${LEVEL}\\b`, "gi"),
+];
+/** Wording that talks about evidence that is missing or wanted, not evidence the review graded. */
+const NOT_A_RATING = /(lack|absence|paucity|need|needs|needed|more|further|future|no|without|require[sd]?)\W+(?:\w+\W+){0,2}$/i;
+
+/**
+ * GRADE certainty ratings a systematic review states in its abstract ("low-certainty evidence",
+ * "the quality of evidence was moderate"). Ratings are per outcome, so all distinct levels are returned.
+ */
+export function extractStatedCertainty(text: string): StatedCertainty[] {
+  const found = new Set<StatedCertainty>();
+  for (const re of STATED) {
+    for (const m of text.matchAll(re)) {
+      const before = text.slice(Math.max(0, (m.index ?? 0) - 30), m.index);
+      const after = text.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 25);
+      if (NOT_A_RATING.test(before) || /^\s*(is|are)?\s*(needed|required|warranted|lacking)/i.test(after)) continue;
+      found.add(m[1].toLowerCase().replace(/[ -]/, "-") as StatedCertainty);
+    }
+  }
+  return [...found];
+}
+
 export function isCochrane(journal: string): boolean {
   return /cochrane database/i.test(journal);
 }

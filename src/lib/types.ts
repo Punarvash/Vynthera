@@ -56,6 +56,8 @@ export interface Article {
   aboutDrug: boolean;
   /** Direction of the main result for the drug, judged by AI from the abstract. */
   direction?: "favors" | "neutral" | "against" | "unclear";
+  /** GRADE certainty the review's authors state in the abstract, one per distinct level (reviews only). */
+  statedCertainty?: ("high" | "moderate" | "low" | "very-low")[];
   /** Funding and conflict-of-interest statements from the open-access full text. */
   fundingStatement?: string;
   coiStatement?: string;
@@ -129,7 +131,8 @@ export interface TargetMechanism {
 
 export type LabelStatus =
   | { kind: "approved"; matched: string }
-  | { kind: "likely-approved"; matched: string }
+  /** covers: the label approves a category that includes the condition (e.g. ear, nose and throat infections). */
+  | { kind: "likely-approved"; matched: string; covers?: string; byAi?: boolean }
   | { kind: "limitation"; matched: string }
   | { kind: "off-label" }
   | { kind: "no-condition" }
@@ -154,6 +157,16 @@ export interface GradeAssessment {
   startLevel?: GradeLevel;
   rationale: string[];
   domains: GradeDomain[];
+  /** Systematic reviews that state their own GRADE ratings for this drug and condition. */
+  published?: PublishedRating[];
+}
+
+export interface PublishedRating {
+  id: string;
+  label: string;
+  url: string;
+  cochrane: boolean;
+  levels: ("high" | "moderate" | "low" | "very-low")[];
 }
 
 /** Full PubMed counts of studies where the drug is a main topic, by design. */

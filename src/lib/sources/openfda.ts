@@ -187,8 +187,31 @@ export async function getLabel(name: string): Promise<DrugLabel | null> {
   return pickBestLabel(await getLabels(name), name);
 }
 
-function uniqueGenericNames(labels: DrugLabel[]): string[] {
-  return [...new Set(labels.map((l) => l.genericName))].sort();
+/** Edit distance, to merge FDA data-entry typos ("clomiphene citrtae") into the common spelling. */
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+  }
+  return row[b.length];
+}
+
+export function uniqueGenericNames(labels: DrugLabel[]): string[] {
+  const counts = new Map<string, number>();
+  for (const l of labels) counts.set(l.genericName, (counts.get(l.genericName) ?? 0) + 1);
+  // Most common spelling first, so a rare misspelling folds into it.
+  const names = [...counts.keys()].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
+  const kept: string[] = [];
+  for (const n of names) {
+    if (!kept.some((k) => k.split(" ")[0] === n.split(" ")[0] && editDistance(k, n) <= 2)) kept.push(n);
+  }
+  return kept.sort();
 }
 
 /** Drugs whose FDA pharmacologic class matches a mechanism, e.g. "DPP-4 inhibitor". */

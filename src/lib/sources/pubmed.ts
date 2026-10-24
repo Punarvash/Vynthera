@@ -1,9 +1,10 @@
 import { cacheLife } from "next/cache";
 import { XMLParser } from "fast-xml-parser";
+import { abbreviationSynonyms } from "../condition-synonyms";
 import { getJson, getText } from "../http";
 import { asArray, stripTags, truncate } from "../text";
 import { pickDesign } from "../design";
-import { extractBlinding, extractSampleSize, isCochrane } from "../study-features";
+import { extractBlinding, extractSampleSize, extractStatedCertainty, isCochrane } from "../study-features";
 import type { Article } from "../types";
 
 // NCBI E-utilities: https://www.ncbi.nlm.nih.gov/books/NBK25499/
@@ -43,8 +44,10 @@ function mappable(s: string): string {
   return s.replace(/["\[\]()]/g, " ").replace(/\b(AND|OR|NOT)\b/g, (w) => w.toLowerCase()).trim();
 }
 
+/** The condition as typed (exact and mapped to MeSH), plus expansions of abbreviations such as "T2DM". */
 export function conditionClause(condition: string): string {
-  return `(${quoted(condition)}[tiab] OR (${mappable(condition)}))`;
+  const expansions = abbreviationSynonyms(condition).map((s) => ` OR ${quoted(s)}[tiab] OR (${mappable(s)})`);
+  return `(${quoted(condition)}[tiab] OR (${mappable(condition)})${expansions.join("")})`;
 }
 
 /** Drug named anywhere in title/abstract or indexed under its MeSH heading. */
@@ -208,6 +211,7 @@ export function parsePubMedXml(xml: string): ParsedArticle[] {
       pmcid: pmc ? textOf(pmc) : undefined,
       cochrane: isCochrane(journal),
       sampleSize: extractSampleSize(abstract),
+      statedCertainty: ["meta-analysis", "systematic-review"].includes(pickDesign(pubTypes)) ? extractStatedCertainty(abstract) : undefined,
       blinding: extractBlinding(fullText),
       // Set by the caller, which knows the drug's names.
       aboutDrug: false,

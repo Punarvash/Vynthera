@@ -66,7 +66,18 @@ export async function applicationsForDrug(names: string[]): Promise<Application[
     const q = encodeURIComponent(`"${n.replace(/"/g, "").toUpperCase()}"`);
     return [`openfda.generic_name:${q}`, `products.active_ingredients.name:${q}`];
   });
-  const url = `${BASE}?search=${clauses.join("+")}&limit=100${key}`;
-  const data = await getJson<{ results?: RawApplication[] }>(SOURCE, url, { notFoundAs: {} });
-  return (data.results ?? []).map(toApplication).filter((a): a is Application => a !== null);
+  const page = (skip: number) =>
+    getJson<{ meta?: { results?: { total?: number } }; results?: RawApplication[] }>(
+      SOURCE,
+      `${BASE}?search=${clauses.join("+")}&limit=100&skip=${skip}${key}`,
+      { notFoundAs: {} },
+    );
+  // Old, widely made drugs (amoxicillin, metformin) have hundreds of applications; read up to 400.
+  const first = await page(0);
+  const total = Math.min(first.meta?.results?.total ?? 0, 400);
+  const rest = await Promise.all(Array.from({ length: Math.max(0, Math.ceil(total / 100) - 1) }, (_, i) => page((i + 1) * 100)));
+  return [first, ...rest]
+    .flatMap((d) => d.results ?? [])
+    .map(toApplication)
+    .filter((a): a is Application => a !== null);
 }

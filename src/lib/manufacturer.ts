@@ -1,7 +1,7 @@
 import { attempt, drugTerms, withFunding } from "./evidence";
 import { applicationsForDrug, type Application } from "./sources/drugsfda";
 import { baseDrugName, getLabel } from "./sources/openfda";
-import { fetchPubMed, searchPubMed } from "./sources/pubmed";
+import { fetchPubMed, mainTopicClause, searchPubMed } from "./sources/pubmed";
 import { trialsBySponsor } from "./sources/clinicaltrials";
 import { titleCase } from "./text";
 import type { Article, DrugLabel, SourceProblem, Trial } from "./types";
@@ -98,7 +98,8 @@ export async function getManufacturerBundle(name: string): Promise<ManufacturerB
   // Short single-word names ("Sun") also match unrelated affiliations ("Sun Yat-sen University").
   const searchable = researchCompanies.filter((c) => c.includes(" ") || c.length >= 6);
   const terms = drugTerms(drug, label);
-  const drugClause = `(${terms.map((t) => `"${t}"[tiab]`).join(" OR ")})`;
+  // The drug must be a main subject (title or MeSH major topic), not a passing mention in another drug's study.
+  const drugClause = mainTopicClause(terms);
   const companyClause = `(${searchable.map((c) => `"${c}"[ad] OR "${c}"[gr]`).join(" OR ")})`;
 
   const [trialLists, search] = await Promise.all([

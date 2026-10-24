@@ -48,6 +48,8 @@ const DOMAIN_STYLE = {
   "not-assessed": { icon: MinusCircle, tone: "text-muted", text: "Not assessed" },
 } as const;
 
+const LEVEL_LABEL = { high: "High", moderate: "Moderate", low: "Low", "very-low": "Very low" } as const;
+
 export async function EvidenceTab({ drug, condition }: { drug: string; condition?: string }) {
   const e = await loadEvidence(drug, condition);
   const topic = condition ? `${e.drug} for ${condition}` : e.drug;
@@ -89,6 +91,20 @@ export async function EvidenceTab({ drug, condition }: { drug: string; condition
               <li key={r}>{r}</li>
             ))}
           </ul>
+          {e.grade.published && e.grade.published.length > 0 && (
+            <div className="mt-4">
+              <h4 className="mb-1 font-semibold">Ratings published by systematic reviews</h4>
+              <p className="mb-2 text-sm text-muted">The certainty the review authors gave, by outcome, as stated in their abstracts.</p>
+              <ul className="space-y-1">
+                {e.grade.published.map((p) => (
+                  <li key={p.id}>
+                    <SourceLink href={p.url}>{p.label}</SourceLink>
+                    {p.cochrane ? " (Cochrane)" : ""}: {p.levels.map((l) => LEVEL_LABEL[l]).join(", ")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {e.grade.domains.length > 0 && (
             <div className="mt-4">
               <h4 className="mb-2 font-semibold">The five GRADE checks</h4>

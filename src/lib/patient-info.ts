@@ -47,7 +47,24 @@ function isOffLabel(e: EvidenceBundle): boolean {
   return e.labelStatus.kind === "off-label" || e.labelStatus.kind === "limitation";
 }
 
-/** Without an AI key: a careful template built from facts already on the page. */
+/**
+ * The label's own list of most common side effects ("Most common adverse reactions (>5%) are
+ * diarrhea, nausea/vomiting, ..."), split into items. Empty when the label does not state one.
+ */
+export function commonSideEffectsFromLabel(text: string | undefined): string[] {
+  if (!text) return [];
+  const m = text.match(/most common adverse (?:reactions|events)[^.:]*?(?:\([^)]*\))?[^.:]*?\b(?:are|were|include|included)\s*:?\s*([^.]+)/i);
+  if (!m) return [];
+  return m[1]
+    .replace(/\([^)]*\)/g, "")
+    .split(/,|;|\band\b/)
+    .map((s) => s.replace(/^\s*(?:and|or)\s+/i, "").trim())
+    .filter((s) => s.length > 2 && s.length < 60 && !/\d+\.\d|see |section/i.test(s))
+    .slice(0, 8)
+    .map((s) => capitalize(s));
+}
+
+/** Without Claude: a careful template built from facts already on the page. */
 export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[]): PlainLanguage {
   const drug = capitalize(e.drug);
   let whatItIsFor: string;
@@ -74,7 +91,7 @@ export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[
     mode: "basic",
     whatItIsFor,
     benefits: [PATIENT_GRADE[e.grade.level]],
-    commonSideEffects: [],
+    commonSideEffects: commonSideEffectsFromLabel(e.label?.adverseReactions),
     seriousRisks,
     drawbacks,
     questions: e.condition && isOffLabel(e) ? [...STANDARD_QUESTIONS, "Will my insurance cover this off-label use?"] : STANDARD_QUESTIONS,

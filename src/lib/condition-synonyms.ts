@@ -1,5 +1,7 @@
+import { normalizeForMatch } from "./text";
+
 /**
- * Common clinical abbreviations and the phrases FDA labels and MeSH use for them.
+ * Common clinical abbreviations and everyday names, and the phrases FDA labels and MeSH use for them.
  * PubMed's own mapping misses many of these, so the off-label check and the
  * indirectness check would otherwise treat "T2DM" as a different condition.
  */
@@ -60,9 +62,32 @@ const ABBREVIATIONS: Record<string, string[]> = {
   als: ["amyotrophic lateral sclerosis"],
   pah: ["pulmonary arterial hypertension"],
   ipf: ["idiopathic pulmonary fibrosis"],
+  "strep throat": ["streptococcal pharyngitis", "pharyngitis", "tonsillitis"],
+  "ear infection": ["otitis media", "acute otitis media"],
+  "sinus infection": ["sinusitis", "acute bacterial sinusitis"],
+  "bladder infection": ["urinary tract infection", "cystitis"],
+  "high blood pressure": ["hypertension"],
+  "high cholesterol": ["hypercholesterolemia", "hyperlipidemia", "primary hyperlipidemia"],
+  "heart attack": ["myocardial infarction"],
+  "acid reflux": ["gastroesophageal reflux disease", "gerd"],
+  heartburn: ["gastroesophageal reflux disease", "heartburn"],
+  depression: ["major depressive disorder", "depression"],
+  anxiety: ["generalized anxiety disorder", "anxiety disorders"],
+  "blood clots": ["deep vein thrombosis", "pulmonary embolism", "venous thromboembolism"],
+  "weight loss": ["chronic weight management", "obesity"],
+  "weight management": ["chronic weight management", "obesity"],
+  diabetes: ["diabetes mellitus", "type 2 diabetes mellitus"],
+  "type 2 diabetes": ["type 2 diabetes mellitus"],
+  "type 1 diabetes": ["type 1 diabetes mellitus"],
+  "under active thyroid": ["hypothyroidism"],
+  "underactive thyroid": ["hypothyroidism"],
+  "overactive thyroid": ["hyperthyroidism"],
+  "enlarged prostate": ["benign prostatic hyperplasia"],
+  "lou gehrig s disease": ["amyotrophic lateral sclerosis"],
 };
 
-/** Expanded phrases for a condition written as a known abbreviation (case-insensitive), else []. */
+/** Expanded phrases for a condition written as a known abbreviation or everyday name (case-insensitive), else []. */
 export function abbreviationSynonyms(condition: string): string[] {
-  return ABBREVIATIONS[condition.trim().toLowerCase().replace(/[\s.-]/g, "")] ?? [];
+  const words = normalizeForMatch(condition);
+  return ABBREVIATIONS[words] ?? ABBREVIATIONS[words.replace(/ /g, "")] ?? [];
 }

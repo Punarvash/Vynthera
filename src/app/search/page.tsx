@@ -33,7 +33,7 @@ function DrugList({ drugs, condition }: { drugs: { name: string; note?: string }
 
 function phaseNote(maxPhase?: number): string | undefined {
   if (maxPhase === undefined) return undefined;
-  return maxPhase >= 4 ? "Approved for this use somewhere (any regulator)" : `Studied up to phase ${maxPhase}`;
+  return maxPhase >= 4 ? "Approved, or in phase 4 trials, for this or a closely related condition (any country)" : `Studied up to phase ${maxPhase}`;
 }
 
 async function Results({ searchParams }: { searchParams: PageProps<"/search">["searchParams"] }) {
@@ -52,7 +52,8 @@ async function Results({ searchParams }: { searchParams: PageProps<"/search">["s
   // When the query is a condition, carry it to the drug page so off-label status can be checked.
   const asCondition = condition ?? (r.byIndication.length || r.disease ? q : undefined);
   const sections = [
-    r.byIndication.length > 0 && (
+    // A mechanism query ("GLP-1 receptor agonist") also appears in label indications text; that is not an approved use.
+    r.byIndication.length > 0 && (r.disease || r.byMechanism.length === 0) && (
       <section key="ind">
         <h2 className="mb-1 text-xl font-semibold">FDA-approved for &ldquo;{q}&rdquo;</h2>
         <p className="mb-3 text-muted">Drugs whose FDA label indications mention this condition.</p>

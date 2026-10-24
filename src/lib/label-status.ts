@@ -1,3 +1,4 @@
+import { coveringCategory } from "./indication-categories";
 import { normalizeForMatch } from "./text";
 import type { DrugLabel, LabelStatus } from "./types";
 
@@ -29,6 +30,10 @@ export function assessLabelStatus(label: DrugLabel | null, condition: string | u
   const tokens = phrase.split(" ").filter((t) => !STOPWORDS.has(t));
   const allTokens = (text: string) => tokens.length > 0 && tokens.every((t) => text.includes(` ${t} `));
   if (allTokens(indicatedText)) return { kind: "likely-approved", matched: tokens.join(", ") };
+
+  // Labels that approve a body site or infection category ("infections of the ear, nose, and throat").
+  const covering = coveringCategory(indicated, [cond, ...synonyms]);
+  if (covering) return { kind: "likely-approved", matched: covering.wording, covers: covering.category };
   if (allTokens(limitText)) return { kind: "limitation", matched: cond };
   return { kind: "off-label" };
 }
@@ -40,11 +45,17 @@ export function labelStatusText(status: LabelStatus, drug: string, condition?: s
         ? `FDA-approved: "${condition}" appears in the indications on the ${drug} label.`
         : `FDA-approved: the ${drug} label indications include "${status.matched}", a synonym of ${condition}.`;
     case "likely-approved":
+      if (status.covers) {
+        return `FDA-approved for ${status.covers}: the ${drug} label indications cover "${status.matched}", which includes ${condition}. Check the label for the organisms and patients it covers.`;
+      }
+      if (status.byAi) {
+        return `Probably FDA-approved: the ${drug} label indications say "${status.matched}", which appears to cover ${condition}. Confirm on the label.`;
+      }
       return `Probably FDA-approved: the label indications mention ${status.matched}. Confirm the exact wording on the label.`;
     case "limitation":
       return `Not approved: the label lists "${condition}" under Limitations of Use.`;
     case "off-label":
-      return `Off-label: "${condition}" was not found in the FDA label indications for ${drug}. Synonyms can be missed, so confirm on the label.`;
+      return `Off-label: "${condition}" is not among the FDA-approved uses listed on the ${drug} label. If the label uses different wording for this condition, it may still be approved, so check the label's indications.`;
     case "no-condition":
       return "Add the patient's condition to check off-label status.";
     case "no-label":

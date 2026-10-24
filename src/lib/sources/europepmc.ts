@@ -1,4 +1,5 @@
 import { cacheLife } from "next/cache";
+import { abbreviationSynonyms } from "../condition-synonyms";
 import { getJson, getText } from "../http";
 import { asArray, stripTags, truncate } from "../text";
 import { inferDesignFromText } from "../design";
@@ -61,11 +62,17 @@ function term(s: string): string {
   return `"${s.replace(/"/g, "")}"`;
 }
 
+/** The condition and its expansions ("T2DM" -> "type 2 diabetes mellitus") as one OR group. */
+function conditionTerm(condition: string, field = ""): string {
+  const all = [condition, ...abbreviationSynonyms(condition)];
+  return `(${all.map((c) => `${field}${term(c)}`).join(" OR ")})`;
+}
+
 export async function searchPreprints(drugTerms: string[], condition: string | undefined, pageSize = 10): Promise<Article[]> {
   "use cache";
   cacheLife("days");
   const drug = `(${drugTerms.map(term).join(" OR ")})`;
-  const query = `${drug}${condition ? ` AND ${term(condition)}` : ""} AND SRC:PPR`;
+  const query = `${drug}${condition ? ` AND ${conditionTerm(condition)}` : ""} AND SRC:PPR`;
   const url = `${BASE}?format=json&resultType=core&pageSize=${pageSize}&query=${encodeURIComponent(query)}`;
   const data = await getJson<RawResponse>(SOURCE, url);
   return (data.resultList?.result ?? []).map(toPreprint).filter((a): a is Article => a !== null);
@@ -92,8 +99,7 @@ export interface LiteratureProfile {
 export async function literatureProfile(drugTerms: string[], condition: string | undefined): Promise<LiteratureProfile> {
   "use cache";
   cacheLife("days");
-  const drug = `(${drugTerms.map((t) => `TITLE_ABS:${term(t)}`).join(" OR ")})`;
-  const query = `${drug}${condition ? ` AND TITLE_ABS:${term(condition)}` : ""} AND SRC:MED`;
+  const query = profileQuery(drugTerms, condition);
   const url = `${BASE}?format=json&resultType=lite&pageSize=500&query=${encodeURIComponent(query)}`;
   const data = await getJson<LiteResponse>(SOURCE, url, { timeoutMs: 15000 });
   const rows = data.resultList?.result ?? [];
@@ -105,7 +111,36 @@ export async function literatureProfile(drugTerms: string[], condition: string |
     if (r.pubYear) byYear[r.pubYear] = (byYear[r.pubYear] ?? 0) + 1;
     if (r.pmid && typeof r.citedByCount === "number") citations[r.pmid] = r.citedByCount;
   }
-  return { total: data.hitCount ?? rows.length, sampled: rows.length, byYear, citations, openAccess };
+  const total = data.hitCount ?? rows.length;
+  if (rows.length < total) {
+    // The 500 rows are the most relevant, not a random sample, so count every year exactly instead.
+    const exact = await countsByYear(query, Math.max(...Object.keys(byYear).map(Number).filter(Number.isFinite)));
+    if (exact) return { total, sampled: total, byYear: exact, citations, openAccess };
+  }
+  return { total, sampled: rows.length, byYear, citations, openAccess };
+}
+
+function profileQuery(drugTerms: string[], condition: string | undefined): string {
+  const drug = `(${drugTerms.map((t) => `TITLE_ABS:${term(t)}`).join(" OR ")})`;
+  return `${drug}${condition ? ` AND ${conditionTerm(condition, "TITLE_ABS:")}` : ""} AND SRC:MED`;
+}
+
+/** Exact publication counts for each of the last 25 years; null if any year fails, so the chart never shows gaps as zeros. */
+async function countsByYear(query: string, latestYear: number): Promise<Record<string, number> | null> {
+  if (!Number.isFinite(latestYear)) return null;
+  const years = Array.from({ length: 25 }, (_, i) => latestYear - 24 + i);
+  try {
+    const counts = await Promise.all(
+      years.map(async (y) => {
+        const url = `${BASE}?format=json&resultType=idlist&pageSize=1&query=${encodeURIComponent(`${query} AND PUB_YEAR:${y}`)}`;
+        const data = await getJson<{ hitCount?: number }>(SOURCE, url, { timeoutMs: 8000, quiet: true });
+        return [String(y), data.hitCount ?? 0] as const;
+      }),
+    );
+    return Object.fromEntries(counts.filter(([, n]) => n > 0));
+  } catch {
+    return null;
+  }
 }
 
 export interface FullTextDisclosures {

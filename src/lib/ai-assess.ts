@@ -72,3 +72,46 @@ export async function assessDirections(
     return null;
   }
 }
+
+const IndicationSchema = z.object({
+  covered: z.boolean().describe("True only if the indications approve the drug for this condition or a category that clearly includes it."),
+  quote: z.string().describe("The exact words from the indications that cover the condition, copied verbatim; empty if not covered."),
+});
+
+const INDICATION_SYSTEM = `You check whether an FDA label's Indications and Usage section approves a drug for a condition.
+Count a condition as covered when the label names it, a synonym, or a category that clearly includes it (for example "infections of the ear, nose, and throat" covers otitis media).
+Text under "Limitations of Use", or uses the label says are not established, do not count. Quote the covering words exactly as written.`;
+
+async function callClaudeIndication(drug: string, condition: string, indications: string) {
+  "use cache";
+  cacheLife("days");
+  const client = new Anthropic();
+  const response = await client.messages.parse({
+    model: claudeModel(),
+    max_tokens: 1000,
+    system: INDICATION_SYSTEM,
+    output_config: { effort: "low", format: zodOutputFormat(IndicationSchema) },
+    messages: [{ role: "user", content: `Drug: ${drug}\nCondition: ${condition}\n\nIndications and Usage:\n${truncate(indications, 8000)}` }],
+  });
+  if (response.stop_reason === "refusal" || !response.parsed_output) {
+    throw new Error(`No indication check returned (stop reason: ${response.stop_reason})`);
+  }
+  return response.parsed_output;
+}
+
+/**
+ * Claude's reading of whether the label's indications cover a condition, for wording that text
+ * matching misses. Returns the covering quote only when it appears verbatim in the label; null otherwise.
+ */
+export async function indicationQuote(drug: string, condition: string, indications: string): Promise<string | null> {
+  if (!claudeEnabled() || !indications) return null;
+  try {
+    const out = await callClaudeIndication(drug, condition, indications);
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const quote = out.quote.trim();
+    return out.covered && quote.length > 3 && norm(indications).includes(norm(quote)) ? quote : null;
+  } catch (err) {
+    console.error("Indication check failed", err);
+    return null;
+  }
+}
