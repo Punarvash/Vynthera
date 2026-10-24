@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classifyFunding, isIndustryAgency } from "../funding";
-import { assessGrade, uncertaintyStatement } from "../grade";
+import { assessGrade, uncertaintyStatement, verdict } from "../grade";
 import { assessLabelStatus } from "../label-status";
 import { pickDesign, inferDesignFromText } from "../design";
 import type { Article, DrugLabel, StudyDesign, Trial } from "../types";
@@ -21,8 +21,25 @@ function article(design: StudyDesign, extra: Partial<Article> = {}): Article {
     nctIds: [],
     grantAgencies: [],
     funding: { kind: "unreported", reason: "" },
+    meshMajor: [],
+    mesh: [],
+    cochrane: false,
+    aboutDrug: true,
     ...extra,
   };
+}
+
+const NONE = { metaAnalyses: 0, rcts: 0, nonRandomized: 0, observational: 0, caseReports: 0 };
+
+function grade(counts: Partial<typeof NONE>, rated: Article[] = [], extra: Partial<Parameters<typeof assessGrade>[0]> = {}) {
+  return assessGrade({
+    condition: "pcos",
+    counts: { ...NONE, ...counts },
+    rated,
+    conditionPhrases: ["pcos", "polycystic ovary syndrome"],
+    directionsAssessed: false,
+    ...extra,
+  });
 }
 
 const label = {
@@ -47,28 +64,76 @@ describe("off-label status", () => {
   });
 });
 
-describe("GRADE starting certainty", () => {
-  it("rates two randomized trials High", () => {
-    expect(assessGrade([article("rct"), article("rct")]).level).toBe("high");
+describe("GRADE certainty", () => {
+  const blindedTrial = (n: number, extra: Partial<Article> = {}) =>
+    article("rct", { title: "Metformin in polycystic ovary syndrome", sampleSize: n, blinding: "blinded", ...extra });
+
+  it("needs a condition before rating", () => {
+    const g = grade({ rcts: 10 }, [], { condition: undefined });
+    expect(g.level).toBe("needs-condition");
+    expect(g.rationale[0]).toMatch(/10 randomized trials/);
   });
-  it("downgrades a lone trial for imprecision", () => {
-    expect(assessGrade([article("rct"), article("observational")]).level).toBe("moderate");
+
+  it("rates large, blinded, consistent randomized evidence High", () => {
+    const g = grade({ rcts: 12, metaAnalyses: 3 }, [blindedTrial(300), blindedTrial(250)]);
+    expect(g.level).toBe("high");
+    expect(g.domains.find((d) => d.name === "Imprecision")?.status).toBe("no-concern");
   });
-  it("rates observational evidence Low and case reports Very low", () => {
-    expect(assessGrade([article("observational")]).level).toBe("low");
-    expect(assessGrade([article("case-report")]).level).toBe("very-low");
+
+  it("downgrades a single trial and small evidence for imprecision", () => {
+    expect(grade({ rcts: 1 }, [blindedTrial(500)]).level).toBe("moderate");
+    const small = grade({ rcts: 3 }, [blindedTrial(60), blindedTrial(80)]);
+    expect(small.level).toBe("moderate");
+    expect(small.domains.find((d) => d.name === "Imprecision")?.reason).toMatch(/140 participants/);
   });
-  it("ignores preprints when rating", () => {
-    const g = assessGrade([article("rct", { peerReviewed: false }), article("case-report")]);
-    expect(g.level).toBe("very-low");
-    expect(g.rationale.join(" ")).toMatch(/1 preprint not peer reviewed was shown but not counted/);
+
+  it("downgrades mostly open-label trials for risk of bias", () => {
+    const g = grade({ rcts: 5 }, [blindedTrial(300, { blinding: "open-label" }), blindedTrial(300, { blinding: "open-label" }), blindedTrial(300)]);
+    expect(g.domains.find((d) => d.name === "Risk of bias")?.status).toBe("downgraded");
+    expect(g.level).toBe("moderate");
   });
+
+  it("downgrades indirect evidence and industry-dominated funding", () => {
+    const industry = { kind: "industry", reason: "x" } as const;
+    const g = grade({ rcts: 4 }, [
+      blindedTrial(300, { title: "Metformin in obesity", funding: industry }),
+      blindedTrial(300, { title: "Metformin in diabetes", funding: industry }),
+      blindedTrial(300, { funding: industry }),
+    ]);
+    const names = g.domains.filter((d) => d.status === "downgraded").map((d) => d.name);
+    expect(names).toEqual(["Indirectness", "Publication bias"]);
+    expect(g.level).toBe("low");
+  });
+
+  it("uses MeSH headings to judge directness", () => {
+    const g = grade({ rcts: 4 }, [
+      blindedTrial(300, { title: "Effects of metformin on ovulation", mesh: ["polycystic ovary syndrome"] }),
+      blindedTrial(300),
+    ]);
+    expect(g.domains.find((d) => d.name === "Indirectness")?.status).toBe("no-concern");
+  });
+
+  it("downgrades inconsistent directions only when AI assessed them", () => {
+    const rated = [blindedTrial(300, { direction: "favors" }), blindedTrial(300, { direction: "against" }), blindedTrial(300, { direction: "favors" })];
+    expect(grade({ rcts: 3 }, rated).domains.find((d) => d.name === "Inconsistency")?.status).toBe("not-assessed");
+    expect(grade({ rcts: 3 }, rated, { directionsAssessed: true }).domains.find((d) => d.name === "Inconsistency")?.status).toBe("downgraded");
+  });
+
+  it("starts non-randomized evidence at Low and case reports at Very low", () => {
+    expect(grade({ observational: 5 }).level).toBe("low");
+    expect(grade({ caseReports: 3 }).level).toBe("very-low");
+  });
+
   it("says when nothing was found, without implying the drug fails", () => {
-    const grade = assessGrade([]);
-    expect(grade.level).toBe("insufficient");
-    const lines = uncertaintyStatement({ drug: "x", condition: "y", grade, articles: [], trials: [], labelStatus: { kind: "off-label" } });
+    const g = grade({});
+    expect(g.level).toBe("insufficient");
+    const lines = uncertaintyStatement({ drug: "x", condition: "y", grade: g, articles: [], trials: [], labelStatus: { kind: "off-label" } });
     expect(lines[0]).toMatch(/not that it does not work/);
     expect(lines.at(-1)).toMatch(/off-label/);
+  });
+
+  it("writes a verdict in GRADE wording", () => {
+    expect(verdict("moderate", "metformin", "pcos", { ...NONE, rcts: 3 })).toMatch(/^Moderate certainty evidence on metformin for pcos: probably reliable/);
   });
 });
 
@@ -113,5 +178,14 @@ describe("off-label word matching", () => {
     const l = { indications: "Indicated for diabetes mellitus type 2 in adults." } as DrugLabel;
     expect(assessLabelStatus(l, "type 2 diabetes").kind).toBe("likely-approved");
     expect(assessLabelStatus(l, "type 1 diabetes").kind).toBe("off-label");
+  });
+});
+
+describe("off-label synonyms", () => {
+  it("matches MeSH synonyms of the condition", () => {
+    const l = { indications: "Adjunct to diet to improve glycemic control in adults with type 2 diabetes mellitus." } as DrugLabel;
+    expect(assessLabelStatus(l, "T2DM").kind).toBe("off-label");
+    const s = assessLabelStatus(l, "T2DM", ["diabetes mellitus, type 2", "type 2 diabetes mellitus", "niddm"]);
+    expect(s).toEqual({ kind: "approved", matched: "type 2 diabetes mellitus" });
   });
 });

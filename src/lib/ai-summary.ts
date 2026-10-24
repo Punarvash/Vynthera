@@ -46,10 +46,19 @@ const SYSTEM = `You summarize published clinical evidence for physicians who are
 Use only the numbered sources provided. Never add facts, doses or statistics that are not in them.
 Every finding must cite the IDs of the sources it relies on. Report the direction and size of effects as the sources state them.
 Say plainly when sources disagree, when results come from small or non-randomized studies, or when a source is a preprint that has not been peer reviewed.
-Write in short, plain clinical English. Do not recommend a treatment decision; summarize what the evidence shows.`;
+Write in short, plain clinical English. Do not recommend a treatment decision; summarize what the evidence shows.
+The certainty of evidence has been rated separately with GRADE and is given to you. Phrase the bottom line with GRADE's standard wording for that level:
+High: "<drug> improves/reduces <outcome>"; Moderate: "<drug> probably improves…"; Low: "<drug> may improve…"; Very low: "It is very uncertain whether <drug> improves…".
+If no certainty is given, describe the evidence without a certainty claim.`;
+
+/** Studies where the drug is a main topic; all studies only if none qualify. */
+function mainStudies(bundle: EvidenceBundle) {
+  const main = bundle.studies.filter((a) => a.aboutDrug);
+  return main.length ? main : bundle.studies;
+}
 
 function sourcesFor(bundle: EvidenceBundle): SourceForPrompt[] {
-  const studies = [...bundle.studies.slice(0, 12), ...bundle.preprints.slice(0, 3)];
+  const studies = [...mainStudies(bundle).slice(0, 12), ...bundle.preprints.filter((a) => a.aboutDrug).slice(0, 3)];
   const out: SourceForPrompt[] = studies.map((a, i) => ({
     id: `S${i + 1}`,
     label: `${a.authors.split(",")[0] || "Study"} ${a.year}`.trim(),
@@ -80,7 +89,7 @@ function lastSentences(text: string, n: number): string {
 
 function extractive(bundle: EvidenceBundle, note: string): EvidenceSummary {
   const drug = bundle.drug.toLowerCase();
-  const ranked = [...bundle.studies].sort(
+  const ranked = [...mainStudies(bundle)].sort(
     (a, b) => Number(!a.title.toLowerCase().includes(drug)) - Number(!b.title.toLowerCase().includes(drug)),
   );
   const findings = ranked
@@ -93,7 +102,7 @@ function extractive(bundle: EvidenceBundle, note: string): EvidenceSummary {
   return { mode: "extractive", findings, note };
 }
 
-async function callClaude(drug: string, condition: string | undefined, sources: SourceForPrompt[]) {
+async function callClaude(drug: string, condition: string | undefined, certainty: string, sources: SourceForPrompt[]) {
   "use cache";
   cacheLife("days");
   const client = new Anthropic();
@@ -106,7 +115,7 @@ async function callClaude(drug: string, condition: string | undefined, sources: 
     messages: [
       {
         role: "user",
-        content: `Summarize the evidence on ${topic}.\n\n${sources.map((s) => `[${s.id}]\n${s.text}`).join("\n\n")}`,
+        content: `Summarize the evidence on ${topic}.\nGRADE certainty: ${certainty}\n\n${sources.map((s) => `[${s.id}]\n${s.text}`).join("\n\n")}`,
       },
     ],
   });
@@ -129,7 +138,8 @@ export async function summarizeEvidence(bundle: EvidenceBundle): Promise<Evidenc
   }
   const sources = sourcesFor(bundle);
   try {
-    const out = await callClaude(bundle.drug, bundle.condition, sources);
+    const certainty = ["high", "moderate", "low", "very-low"].includes(bundle.grade.level) ? bundle.grade.label : "not rated";
+    const out = await callClaude(bundle.drug, bundle.condition, certainty, sources);
     const byId = new Map(sources.map((s) => [s.id, s]));
     const findings = out.keyFindings
       .map((f) => ({

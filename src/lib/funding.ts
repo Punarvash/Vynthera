@@ -60,3 +60,27 @@ export function isManufacturerResearch(funding: Funding, manufacturers: string[]
   const r = funding.reason.toLowerCase();
   return manufacturers.some((m) => m && r.includes(m.toLowerCase().split(/[ ,]/)[0]));
 }
+
+const NO_FUNDING =
+  /\b(no (specific |external |financial )?(funding|grant|financial support)|did not receive any (specific )?(funding|grant|financial support)|not (receive|received) any (funding|grant)|was not funded|unfunded|without (any )?funding)\b/i;
+
+/**
+ * Label funding from the funding statement in an open-access full text.
+ * Used only when the registry and PubMed record did not settle it.
+ */
+export function fundingFromStatement(
+  d: { funding?: string; fundingSources: string[] },
+  manufacturers: string[],
+): Funding | null {
+  const statement = d.funding ?? "";
+  if (!statement && d.fundingSources.length === 0) return null;
+  const industrySource = d.fundingSources.find((s) => isIndustryAgency(s, manufacturers));
+  if (industrySource) return { kind: "industry", reason: `Full text: funded by ${industrySource}` };
+  const companyInText = KNOWN_COMPANIES.find((c) => new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(statement));
+  if (companyInText && !NO_FUNDING.test(statement)) {
+    return { kind: "industry", reason: `Full text funding statement names ${companyInText.replace(/\b\w/g, (ch) => ch.toUpperCase())}` };
+  }
+  if (NO_FUNDING.test(statement)) return { kind: "independent", reason: "Full text states no external funding" };
+  if (d.fundingSources.length) return { kind: "independent", reason: `Full text: funded by ${d.fundingSources.slice(0, 2).join(", ")}` };
+  return { kind: "independent", reason: `Full text funding statement: ${statement.slice(0, 120)}${statement.length > 120 ? "…" : ""}` };
+}

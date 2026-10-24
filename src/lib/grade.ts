@@ -1,4 +1,5 @@
-import type { Article, GradeAssessment, GradeLevel, LabelStatus, Trial } from "./types";
+import { isAboutCondition } from "./study-features";
+import type { Article, DesignCounts, GradeAssessment, GradeDomain, GradeLevel, LabelStatus, Trial } from "./types";
 
 // GRADE (Grading of Recommendations, Assessment, Development and Evaluation) is the single
 // grading scale used across Vynthera. Definitions follow the GRADE Handbook, section 5.
@@ -24,72 +25,187 @@ const DEFINITIONS: Record<GradeLevel, { label: string; definition: string }> = {
     label: "No rating",
     definition: "No peer-reviewed clinical studies were found, so certainty cannot be rated.",
   },
+  "needs-condition": {
+    label: "Not rated",
+    definition: "Certainty is rated for a specific use. Add the patient's condition to rate the evidence for it.",
+  },
 };
 
-const NOT_ASSESSED = [
-  "Risk of bias in individual studies",
-  "Inconsistency between study results",
-  "Indirectness (population, dose or outcome differs from your patient)",
-  "Publication bias",
-];
+const ORDER: GradeLevel[] = ["high", "moderate", "low", "very-low"];
 
-function count(articles: Article[], ...designs: Article["design"][]): number {
-  return articles.filter((a) => designs.includes(a.design)).length;
-}
+/** Fewer participants than this across the evidence is treated as imprecise (GRADE's optimal information size rule of thumb). */
+export const MIN_PARTICIPANTS = 400;
 
 function plural(n: number, singular: string, pluralForm = `${singular}s`): string {
-  return `${n} ${n === 1 ? singular : pluralForm}`;
+  return `${n.toLocaleString("en-US")} ${n === 1 ? singular : pluralForm}`;
+}
+
+export function countsFromStudies(studies: Article[]): DesignCounts {
+  const n = (...d: Article["design"][]) => studies.filter((a) => d.includes(a.design)).length;
+  return {
+    metaAnalyses: n("meta-analysis", "systematic-review"),
+    rcts: n("rct"),
+    nonRandomized: n("clinical-trial"),
+    observational: n("observational"),
+    caseReports: n("case-report", "case-series"),
+  };
+}
+
+export function describeCounts(c: DesignCounts): string {
+  const parts = [
+    c.metaAnalyses && plural(c.metaAnalyses, "meta-analysis or systematic review", "meta-analyses or systematic reviews"),
+    c.rcts && plural(c.rcts, "randomized trial"),
+    c.nonRandomized && plural(c.nonRandomized, "non-randomized trial"),
+    c.observational && plural(c.observational, "observational study", "observational studies"),
+    c.caseReports && plural(c.caseReports, "case report"),
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : "no clinical studies";
+}
+
+export interface GradeInput {
+  condition?: string;
+  /** Full PubMed counts for studies where the drug is a main topic; null when counting failed. */
+  counts: DesignCounts | null;
+  /** Fetched peer-reviewed studies where the drug is a main topic (any design). */
+  rated: Article[];
+  /** The condition and its MeSH synonyms, for the indirectness check. */
+  conditionPhrases: string[];
+  /** True when AI has judged each study's direction of effect. */
+  directionsAssessed: boolean;
+}
+
+function domain(name: GradeDomain["name"], status: GradeDomain["status"], reason: string): GradeDomain {
+  return { name, status, reason };
 }
 
 /**
- * A design-based GRADE starting rating for the body of evidence.
- * Randomized evidence starts High; observational evidence starts Low; case reports Very low.
- * The only downgrade applied automatically is imprecision when a single randomized trial
- * stands alone. Other GRADE domains need a reader's judgement and are listed as not assessed.
+ * GRADE certainty for the body of evidence on one drug for one condition.
+ * Starts from study design (randomized -> High, otherwise Low), then lowers one level for each
+ * domain with a concern that can be checked from abstracts, registries and funding records.
  */
-export function assessGrade(articles: Article[]): GradeAssessment {
-  const peer = articles.filter((a) => a.peerReviewed);
-  const preprints = articles.length - peer.length;
-  const meta = count(peer, "meta-analysis", "systematic-review");
-  const rct = count(peer, "rct");
-  const nonRandomized = count(peer, "clinical-trial", "observational");
-  const cases = count(peer, "case-report", "case-series");
+export function assessGrade(input: GradeInput): GradeAssessment {
+  const { condition, rated, conditionPhrases, directionsAssessed } = input;
+  const counts = input.counts ?? countsFromStudies(rated);
+  const found = `In MEDLINE, with the drug as a main topic: ${describeCounts(counts)}.`;
 
-  const found: string[] = [];
-  if (meta) found.push(plural(meta, "meta-analysis or systematic review", "meta-analyses or systematic reviews"));
-  if (rct) found.push(plural(rct, "randomized trial"));
-  if (nonRandomized) found.push(plural(nonRandomized, "non-randomized or observational study", "non-randomized or observational studies"));
-  if (cases) found.push(plural(cases, "case report"));
+  if (!condition) {
+    return { level: "needs-condition", ...DEFINITIONS["needs-condition"], rationale: [found], domains: [] };
+  }
 
-  const rationale: string[] = [];
-  if (found.length) rationale.push(`Found in MEDLINE: ${found.join(", ")}.`);
-
-  let level: GradeLevel;
-  if (rct >= 2 || (meta >= 1 && rct >= 1)) {
-    level = "high";
-    rationale.push("Starts at High because randomized evidence is available.");
-  } else if (rct === 1 || meta >= 1) {
-    level = "moderate";
-    rationale.push(
-      rct === 1
-        ? "Starts at High for randomized evidence, lowered one level because a single trial is imprecise."
-        : "Reviews were found, but no randomized trials among the top results, so it is rated Moderate. Check whether the reviews pool randomized trials.",
-    );
-  } else if (nonRandomized) {
-    level = "low";
-    rationale.push("Starts at Low because the evidence is non-randomized.");
-  } else if (cases) {
-    level = "very-low";
+  let start: GradeLevel;
+  const rationale = [found];
+  if (counts.rcts > 0) {
+    start = "high";
+    rationale.push("Starts at High because randomized trials exist.");
+  } else if (counts.metaAnalyses + counts.nonRandomized + counts.observational > 0) {
+    start = "low";
+    rationale.push("Starts at Low because no randomized trials were found, so the evidence is non-randomized.");
+  } else if (counts.caseReports > 0) {
     rationale.push("Rated Very low because only case reports were found.");
+    return { level: "very-low", ...DEFINITIONS["very-low"], startLevel: "very-low", rationale, domains: [] };
   } else {
-    level = "insufficient";
+    return { level: "insufficient", ...DEFINITIONS.insufficient, rationale, domains: [] };
   }
 
-  if (preprints > 0) {
-    rationale.push(`${plural(preprints, "preprint")} not peer reviewed ${preprints === 1 ? "was" : "were"} shown but not counted.`);
+  const clinical = rated.filter((a) => a.peerReviewed && !["case-report", "case-series", "review", "other"].includes(a.design));
+  const trials = clinical.filter((a) => a.design === "rct");
+  const reviews = clinical.filter((a) => a.design === "meta-analysis" || a.design === "systematic-review");
+  const domains: GradeDomain[] = [];
+
+  // Risk of bias: masking stated in randomized trial abstracts.
+  if (start === "high") {
+    const known = trials.filter((a) => a.blinding);
+    const open = known.filter((a) => a.blinding === "open-label").length;
+    if (known.length >= 2 && open / known.length > 0.5) {
+      domains.push(domain("Risk of bias", "downgraded", `${open} of ${known.length} trials that state their masking were open-label.`));
+    } else if (known.length === 0) {
+      domains.push(domain("Risk of bias", "not-assessed", "The trial abstracts do not state whether they were blinded."));
+    } else {
+      domains.push(domain("Risk of bias", "no-concern", `${known.length - open} of ${known.length} trials that state their masking were blinded.`));
+    }
+  } else {
+    domains.push(domain("Risk of bias", "not-assessed", "Bias in non-randomized studies needs a full-text review."));
   }
 
-  return { level, ...DEFINITIONS[level], rationale, notAssessed: level === "insufficient" ? [] : NOT_ASSESSED };
+  // Inconsistency: direction of each study's result, judged by AI from its abstract.
+  if (directionsAssessed) {
+    const favors = clinical.filter((a) => a.direction === "favors").length;
+    const against = clinical.filter((a) => a.direction === "against").length;
+    const neutral = clinical.filter((a) => a.direction === "neutral").length;
+    if (favors > 0 && against > 0 && Math.min(favors, against) / (favors + against) >= 0.25) {
+      domains.push(domain("Inconsistency", "downgraded", `Results point in different directions: ${favors} favour the drug, ${against} favour the comparison.`));
+    } else if (favors + against + neutral === 0) {
+      domains.push(domain("Inconsistency", "not-assessed", "No study's direction of effect could be read from its abstract."));
+    } else {
+      domains.push(domain("Inconsistency", "no-concern", `Results agree in direction: ${favors} favour the drug, ${neutral} show no difference, ${against} favour the comparison.`));
+    }
+  } else {
+    domains.push(domain("Inconsistency", "not-assessed", "Comparing results across studies needs AI reading of each abstract (add an Anthropic API key)."));
+  }
+
+  // Indirectness: are the studies mainly about this condition?
+  if (clinical.length >= 2) {
+    const direct = clinical.filter((a) => isAboutCondition(a, conditionPhrases)).length;
+    if (direct / clinical.length < 0.5) {
+      domains.push(domain("Indirectness", "downgraded", `Only ${direct} of ${clinical.length} studies are mainly about ${condition}; the rest only mention it.`));
+    } else {
+      domains.push(domain("Indirectness", "no-concern", `${direct} of ${clinical.length} studies are mainly about ${condition}.`));
+    }
+  } else {
+    domains.push(domain("Indirectness", "not-assessed", "Too few studies to judge."));
+  }
+
+  // Imprecision: how many participants the evidence rests on.
+  const pooled = Math.max(0, ...reviews.map((a) => a.sampleSize ?? 0));
+  const trialTotal = trials.reduce((sum, a) => sum + (a.sampleSize ?? 0), 0);
+  const participants = Math.max(pooled, trialTotal);
+  if (start === "high" && counts.rcts === 1 && counts.metaAnalyses === 0) {
+    domains.push(domain("Imprecision", "downgraded", "The evidence rests on a single randomized trial."));
+  } else if (participants === 0) {
+    domains.push(domain("Imprecision", "not-assessed", "Participant numbers are not stated in the abstracts."));
+  } else if (participants < MIN_PARTICIPANTS) {
+    domains.push(domain("Imprecision", "downgraded", `About ${participants.toLocaleString("en-US")} participants across the studies shown, fewer than ${MIN_PARTICIPANTS}.`));
+  } else {
+    domains.push(domain("Imprecision", "no-concern", `About ${participants.toLocaleString("en-US")} participants${pooled ? " in the largest pooled analysis" : " across the trials shown"}.`));
+  }
+
+  // Publication bias: evidence dominated by industry funding.
+  const knownFunding = clinical.filter((a) => a.funding.kind !== "unreported");
+  const industry = knownFunding.filter((a) => a.funding.kind === "industry").length;
+  if (knownFunding.length < 3) {
+    domains.push(domain("Publication bias", "not-assessed", "Funding is known for too few studies to judge."));
+  } else if (industry / knownFunding.length >= 0.6) {
+    domains.push(domain("Publication bias", "downgraded", `${industry} of ${knownFunding.length} studies with known funding are industry-funded.`));
+  } else {
+    domains.push(domain("Publication bias", "no-concern", `${industry} of ${knownFunding.length} studies with known funding are industry-funded.`));
+  }
+
+  const downgrades = Math.min(3, domains.filter((d) => d.status === "downgraded").length);
+  const level = ORDER[Math.min(ORDER.length - 1, ORDER.indexOf(start) + downgrades)];
+  if (downgrades > 0) {
+    const names = domains.filter((d) => d.status === "downgraded").map((d) => d.name.toLowerCase());
+    rationale.push(`Lowered ${plural(downgrades, "level")} for ${names.join(", ")}.`);
+  }
+  return { level, ...DEFINITIONS[level], startLevel: start, rationale, domains };
+}
+
+/** GRADE's standard wording for a finding at each certainty level. */
+export function verdict(level: GradeLevel, drug: string, condition: string | undefined, counts: DesignCounts): string {
+  const topic = condition ? `${drug} for ${condition}` : drug;
+  switch (level) {
+    case "high":
+      return `High certainty evidence on ${topic}, based on ${describeCounts(counts)}.`;
+    case "moderate":
+      return `Moderate certainty evidence on ${topic}: probably reliable, but new studies could change the estimate. Based on ${describeCounts(counts)}.`;
+    case "low":
+      return `Low certainty evidence on ${topic}: the true effect may be substantially different. Based on ${describeCounts(counts)}.`;
+    case "very-low":
+      return `Very low certainty evidence on ${topic}: we are very uncertain about the effect. Based on ${describeCounts(counts)}.`;
+    case "insufficient":
+      return `No peer-reviewed clinical studies of ${topic} were found.`;
+    case "needs-condition":
+      return `Add the patient's condition to rate the evidence for ${drug}. PubMed has ${describeCounts(counts)} with ${drug} as a main topic.`;
+  }
 }
 
 /**
@@ -124,6 +240,12 @@ export function uncertaintyStatement(input: {
     case "insufficient":
       lines.push(`No peer-reviewed clinical studies of ${topic} were found. This means it has not been studied, not that it does not work.`);
       break;
+    case "needs-condition":
+      lines.push(`Certainty depends on what ${drug} is used for. Add the patient's condition to see how certain the evidence is for that use.`);
+      break;
+  }
+  for (const d of grade.domains.filter((x) => x.status === "downgraded")) {
+    lines.push(`${d.name}: ${d.reason}`);
   }
 
   const peer = articles.filter((a) => a.peerReviewed);

@@ -39,6 +39,26 @@ export interface Article {
   nctIds: string[];
   grantAgencies: string[];
   funding: Funding;
+  /** MeSH descriptors marked as a major topic of the article (lowercase). */
+  meshMajor: string[];
+  /** All MeSH descriptors (lowercase). */
+  mesh: string[];
+  pmcid?: string;
+  /** A Cochrane systematic review. */
+  cochrane: boolean;
+  /** Participants, read from the abstract when stated. */
+  sampleSize?: number;
+  /** Trial masking, read from the abstract when stated. */
+  blinding?: "blinded" | "open-label";
+  /** Times cited, from Europe PMC. */
+  citations?: number;
+  /** Whether the drug is a main subject of the study (title or MeSH major topic), not just mentioned. */
+  aboutDrug: boolean;
+  /** Direction of the main result for the drug, judged by AI from the abstract. */
+  direction?: "favors" | "neutral" | "against" | "unclear";
+  /** Funding and conflict-of-interest statements from the open-access full text. */
+  fundingStatement?: string;
+  coiStatement?: string;
 }
 
 export type SponsorClass =
@@ -65,6 +85,8 @@ export interface Trial {
   startDate?: string;
   conditions: string[];
   url: string;
+  /** First primary outcome with posted results, when available. */
+  result?: TrialOutcome;
 }
 
 export interface DrugLabel {
@@ -113,15 +135,42 @@ export type LabelStatus =
   | { kind: "no-condition" }
   | { kind: "no-label" };
 
-export type GradeLevel = "high" | "moderate" | "low" | "very-low" | "insufficient";
+export type GradeLevel = "high" | "moderate" | "low" | "very-low" | "insufficient" | "needs-condition";
+
+export type GradeDomainName = "Risk of bias" | "Inconsistency" | "Indirectness" | "Imprecision" | "Publication bias";
+
+export interface GradeDomain {
+  name: GradeDomainName;
+  status: "no-concern" | "downgraded" | "not-assessed";
+  reason: string;
+}
 
 export interface GradeAssessment {
   level: GradeLevel;
   label: string;
   /** The established GRADE definition for this level. */
   definition: string;
+  /** Certainty before downgrades, set by the best study design. */
+  startLevel?: GradeLevel;
   rationale: string[];
-  notAssessed: string[];
+  domains: GradeDomain[];
+}
+
+/** Full PubMed counts of studies where the drug is a main topic, by design. */
+export interface DesignCounts {
+  metaAnalyses: number;
+  rcts: number;
+  nonRandomized: number;
+  observational: number;
+  caseReports: number;
+}
+
+export interface TrialOutcome {
+  title: string;
+  timeFrame?: string;
+  unit?: string;
+  groups: { title: string; participants?: string; value: string }[];
+  pValue?: string;
 }
 
 /** A source that failed to respond; shown to the user instead of silently dropping data. */

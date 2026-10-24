@@ -7,7 +7,7 @@ const STOPWORDS = new Set(["the", "and", "of", "in", "with", "for", "to", "a", "
  * Decide whether a condition appears in the FDA label's Indications and Usage section.
  * Text matching can miss synonyms (e.g. "T2DM"), so the UI always links to the label to verify.
  */
-export function assessLabelStatus(label: DrugLabel | null, condition: string | undefined): LabelStatus {
+export function assessLabelStatus(label: DrugLabel | null, condition: string | undefined, synonyms: string[] = []): LabelStatus {
   if (!label) return { kind: "no-label" };
   const cond = condition?.trim();
   if (!cond) return { kind: "no-condition" };
@@ -19,8 +19,11 @@ export function assessLabelStatus(label: DrugLabel | null, condition: string | u
   const phrase = normalizeForMatch(cond);
   if (!phrase) return { kind: "no-condition" };
 
-  if (indicatedText.includes(` ${phrase} `)) return { kind: "approved", matched: cond };
-  if (limitText.includes(` ${phrase} `)) return { kind: "limitation", matched: cond };
+  // The condition as typed, then its MeSH synonyms ("T2DM" -> "type 2 diabetes mellitus").
+  const phrases = [phrase, ...synonyms.map(normalizeForMatch).filter((p) => p.length > 2)];
+  const exact = phrases.find((p) => indicatedText.includes(` ${p} `));
+  if (exact) return { kind: "approved", matched: exact === phrase ? cond : exact };
+  if (phrases.some((p) => limitText.includes(` ${p} `))) return { kind: "limitation", matched: cond };
 
   // Numbers and single letters are kept: "type 1" and "type 2" diabetes must not match each other.
   const tokens = phrase.split(" ").filter((t) => !STOPWORDS.has(t));
@@ -33,7 +36,9 @@ export function assessLabelStatus(label: DrugLabel | null, condition: string | u
 export function labelStatusText(status: LabelStatus, drug: string, condition?: string): string {
   switch (status.kind) {
     case "approved":
-      return `FDA-approved: "${condition}" appears in the indications on the ${drug} label.`;
+      return status.matched.toLowerCase() === condition?.toLowerCase()
+        ? `FDA-approved: "${condition}" appears in the indications on the ${drug} label.`
+        : `FDA-approved: the ${drug} label indications include "${status.matched}", a synonym of ${condition}.`;
     case "likely-approved":
       return `Probably FDA-approved: the label indications mention ${status.matched}. Confirm the exact wording on the label.`;
     case "limitation":

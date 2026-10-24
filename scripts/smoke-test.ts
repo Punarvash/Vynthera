@@ -12,6 +12,8 @@ const pages: [string, string][] = [
   ["specialists", "/drug/metformin?tab=specialists&state=TX&city=Houston"],
   ["patient", "/drug/metformin?condition=polycystic+ovary+syndrome&tab=patient"],
   ["biologic", "/drug/adalimumab?tab=evidence"],
+  ["synonym check (T2DM)", "/drug/metformin?condition=T2DM&tab=evidence"],
+  ["no condition", "/drug/semaglutide?tab=evidence"],
   ["ophthalmic cases", "/search?q=riboflavin&condition=keratoconus"],
   ["ophthalmic cases tab", "/drug/riboflavin?condition=keratoconus&tab=cases"],
 ];
@@ -47,7 +49,7 @@ for (const [name, path] of pages) {
   const footerStart = t.indexOf("Medical disclaimer.");
   const footerEnd = t.indexOf("pending legal review.");
   const body = footerStart >= 0 && footerEnd > footerStart ? t.slice(0, footerStart) + t.slice(footerEnd + 21) : t;
-  console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, 3500));
+  console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, 5000));
 }
 if (failed) process.exitCode = 1;
 export {};

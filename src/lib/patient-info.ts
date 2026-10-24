@@ -28,6 +28,7 @@ const PATIENT_GRADE: Record<GradeLevel, string> = {
   low: "Only limited research supports this use so far.",
   "very-low": "There is very little research on this use, mostly reports about single patients.",
   insufficient: "This use has not been studied in published research yet.",
+  "needs-condition": "Ask your doctor how strong the research is for your condition.",
 };
 
 const STANDARD_QUESTIONS = [

@@ -80,6 +80,7 @@ const GRADE_TONE: Record<GradeLevel, string> = {
   low: "bg-[#8a5a00] text-white",
   "very-low": "bg-[#8a1c12] text-white",
   insufficient: "bg-[#5b5650] text-white",
+  "needs-condition": "bg-[#5b5650] text-white",
 };
 
 export function GradePill({ level, label }: { level: GradeLevel; label: string }) {

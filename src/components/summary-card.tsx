@@ -47,7 +47,11 @@ export async function SummaryCard({ drug, condition }: { drug: string; condition
           <p>
             <GradePill level={evidence.grade.level} label={evidence.grade.label} />
           </p>
-          <p className="text-[0.95rem] text-muted">GRADE certainty, based on study design.</p>
+          <p className="text-[0.95rem] text-muted">
+            {evidence.grade.level === "needs-condition"
+              ? "Add the patient's condition to rate the evidence for that use."
+              : `GRADE certainty for this use${evidence.grade.domains.some((d) => d.status === "downgraded") ? ", after checks for bias, consistency, directness, precision and funding" : ""}.`}
+          </p>
           <p className="text-sm">
             <a href="#drug-tabs" className="font-medium text-navy underline">
               See studies

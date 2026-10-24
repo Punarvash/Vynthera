@@ -32,22 +32,22 @@ export const demoLabel = {
   },
 };
 
-function demoArticle(pmid: string, title: string, pubType: string, opts: { grant?: string; nct?: string; conclusion: string }) {
+function demoArticle(pmid: string, title: string, pubType: string, opts: { grant?: string; nct?: string; conclusion: string; mesh?: string; pmc?: boolean }) {
   return `<PubmedArticle><MedlineCitation Status="MEDLINE"><PMID Version="1">${pmid}</PMID><Article>
 <Journal><Title>Demo Journal of Medicine</Title><JournalIssue><PubDate><Year>2024</Year></PubDate></JournalIssue></Journal>
 <ArticleTitle>[DEMO] ${title}</ArticleTitle>
-<Abstract><AbstractText Label="BACKGROUND">Placeholder background text for interface testing.</AbstractText><AbstractText Label="CONCLUSIONS">${opts.conclusion}</AbstractText></Abstract>
+<Abstract><AbstractText Label="BACKGROUND">Placeholder background text for interface testing. A double-blind study of 240 patients.</AbstractText><AbstractText Label="CONCLUSIONS">${opts.conclusion}</AbstractText></Abstract>
 <AuthorList><Author><LastName>Placeholder</LastName><Initials>A</Initials></Author><Author><LastName>Example</LastName><Initials>B</Initials></Author></AuthorList>
 ${opts.grant ? `<GrantList><Grant><Agency>${opts.grant}</Agency><Country>United States</Country></Grant></GrantList>` : ""}
 <PublicationTypeList><PublicationType UI="D016428">Journal Article</PublicationType><PublicationType>${pubType}</PublicationType></PublicationTypeList>
 ${opts.nct ? `<DataBankList><DataBank><DataBankName>ClinicalTrials.gov</DataBankName><AccessionNumberList><AccessionNumber>${opts.nct}</AccessionNumber></AccessionNumberList></DataBank></DataBankList>` : ""}
-</Article></MedlineCitation><PubmedData><ArticleIdList><ArticleId IdType="pubmed">${pmid}</ArticleId><ArticleId IdType="doi">10.0000/demo.${pmid}</ArticleId></ArticleIdList></PubmedData></PubmedArticle>`;
+</Article>${opts.mesh ? `<MeshHeadingList><MeshHeading><DescriptorName MajorTopicYN="Y">${opts.mesh}</DescriptorName></MeshHeading><MeshHeading><DescriptorName MajorTopicYN="N">Polycystic Ovary Syndrome</DescriptorName></MeshHeading></MeshHeadingList>` : ""}</MedlineCitation><PubmedData><ArticleIdList><ArticleId IdType="pubmed">${pmid}</ArticleId><ArticleId IdType="doi">10.0000/demo.${pmid}</ArticleId>${opts.pmc ? `<ArticleId IdType="pmc">PMC${pmid}</ArticleId>` : ""}</ArticleIdList></PubmedData></PubmedArticle>`;
 }
 
 export const demoPubMedXml = `<?xml version="1.0" ?><PubmedArticleSet>
-${demoArticle("90000001", "Placeholder meta-analysis of <i>metformin</i> trials", "Meta-Analysis", { grant: "NIDDK NIH HHS", conclusion: "Placeholder conclusion: demo pooled estimate favoured the drug." })}
-${demoArticle("90000002", "Placeholder randomized trial", "Randomized Controlled Trial", { nct: "NCT90000002", conclusion: "Placeholder conclusion: demo primary outcome improved versus placebo." })}
-${demoArticle("90000003", "Placeholder cohort study", "Observational Study", { conclusion: "Placeholder conclusion: demo association observed." })}
+${demoArticle("90000001", "Placeholder meta-analysis of <i>metformin</i> trials", "Meta-Analysis", { grant: "NIDDK NIH HHS", conclusion: "Placeholder conclusion: demo pooled estimate favoured the drug.", mesh: "Metformin" })}
+${demoArticle("90000002", "Placeholder randomized trial", "Randomized Controlled Trial", { nct: "NCT90000002", conclusion: "Placeholder conclusion: demo primary outcome improved versus placebo.", mesh: "Metformin" })}
+${demoArticle("90000003", "Placeholder cohort study", "Observational Study", { conclusion: "Placeholder conclusion: demo association observed.", pmc: true })}
 ${demoArticle("90000004", "Placeholder case report", "Case Reports", { conclusion: "Placeholder conclusion: demo single-patient outcome." })}
 </PubmedArticleSet>`;
 
@@ -141,15 +141,55 @@ export function demoResponse(url: string, init?: RequestInit): Response {
       if (/indications_and_usage|pharm_class/.test(decodeURIComponent(u.search))) return json({ error: { code: "NOT_FOUND" } }, 404);
       return isDemoDrug ? json({ meta: { results: { total: 1 } }, results: [demoLabel] }) : json({ error: { code: "NOT_FOUND" } }, 404);
     case "eutils.ncbi.nlm.nih.gov":
+      if (u.searchParams.get("db") === "mesh") {
+        return u.pathname.endsWith("esearch.fcgi")
+          ? json({ esearchresult: { count: "1", idlist: ["68011085"] } })
+          : json({ result: { uids: ["68011085"], "68011085": { ds_meshterms: ["Polycystic Ovary Syndrome", "Ovary Syndrome, Polycystic", "Stein-Leventhal Syndrome"] } } });
+      }
       if (u.pathname.endsWith("esearch.fcgi")) {
         if (!isDemoDrug) return json({ esearchresult: { count: "0", idlist: [] } });
+        const q = decodeURIComponent(u.search);
+        if (u.searchParams.get("retmax") === "0") {
+          const count = q.includes('"meta-analysis"') ? 6 : q.includes("NOT \"randomized") ? 4 : q.includes("randomized controlled trial") ? 14 : q.includes("observational") ? 9 : 3;
+          return json({ esearchresult: { count: String(count), idlist: [] } });
+        }
         const cases = decodeURIComponent(u.search).includes("case reports");
         return json({ esearchresult: cases ? { count: "1", idlist: ["90000004"] } : { count: "3", idlist: ["90000001", "90000002", "90000003"] } });
       }
       return new Response(demoPubMedXml, { status: 200, headers: { "Content-Type": "text/xml" } });
     case "www.ebi.ac.uk":
+      if (u.pathname.endsWith("/fullTextXML")) {
+        return new Response(
+          "<article><front><funding-group><funding-source>National Institutes of Health</funding-source><funding-statement>Placeholder: supported by the NIH.</funding-statement></funding-group></front><back><fn fn-type=\"conflict\"><p>Placeholder: the authors declare no conflicts.</p></fn></back></article>",
+          { status: 200, headers: { "Content-Type": "text/xml" } },
+        );
+      }
+      if (u.searchParams.get("resultType") === "lite") {
+        const years = [2008, 2012, 2015, 2015, 2018, 2019, 2019, 2020, 2021, 2021, 2022, 2023, 2023, 2024, 2024, 2024, 2025];
+        return json({
+          hitCount: years.length,
+          resultList: { result: years.map((y, i) => ({ pmid: String(90000001 + (i % 4)), pubYear: String(y), citedByCount: 40 - i })) },
+        });
+      }
       return json(isDemoDrug ? demoPreprints : { hitCount: 0, resultList: { result: [] } });
     case "clinicaltrials.gov":
+      if (/\/studies\/NCT\d{8}$/.test(u.pathname)) {
+        return json({
+          resultsSection: {
+            outcomeMeasuresModule: {
+              outcomeMeasures: [
+                {
+                  type: "PRIMARY", title: "Placeholder primary outcome", timeFrame: "24 weeks", unitOfMeasure: "points",
+                  groups: [{ id: "OG000", title: "Drug" }, { id: "OG001", title: "Placebo" }],
+                  denoms: [{ counts: [{ groupId: "OG000", value: "120" }, { groupId: "OG001", value: "120" }] }],
+                  classes: [{ categories: [{ measurements: [{ groupId: "OG000", value: "-1.0", spread: "0.3" }, { groupId: "OG001", value: "-0.2", spread: "0.3" }] }] }],
+                  analyses: [{ pValue: "0.01" }],
+                },
+              ],
+            },
+          },
+        });
+      }
       return json(isDemoDrug || u.searchParams.has("filter.ids") ? demoTrials : { totalCount: 0, studies: [] });
     case "connect.medlineplus.gov":
       return json({

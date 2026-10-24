@@ -1,6 +1,6 @@
 import { cacheLife } from "next/cache";
 import { getJson } from "../http";
-import type { SponsorClass, Trial } from "../types";
+import type { SponsorClass, Trial, TrialOutcome } from "../types";
 
 // ClinicalTrials.gov API v2: https://clinicaltrials.gov/data-api/api
 const BASE = "https://clinicaltrials.gov/api/v2/studies";
@@ -65,7 +65,7 @@ function parse(data: RawResponse): Trial[] {
 export async function searchTrials(
   drug: string,
   condition: string | undefined,
-  pageSize = 20,
+  pageSize = 50,
 ): Promise<{ total: number; trials: Trial[] }> {
   "use cache";
   cacheLife("days");
@@ -108,4 +108,52 @@ export async function trialsBySponsor(drug: string, sponsor: string, pageSize = 
   cacheLife("days");
   const url = `${BASE}?format=json&pageSize=${pageSize}&query.intr=${encodeURIComponent(drug)}&query.spons=${encodeURIComponent(sponsor)}&fields=${FIELDS}`;
   return parse(await getJson<RawResponse>(SOURCE, url));
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- results sections are deeply nested */
+/** First primary outcome measure with posted results, flattened for display. */
+export function parsePrimaryOutcome(study: any): TrialOutcome | undefined {
+  const measures: any[] = study?.resultsSection?.outcomeMeasuresModule?.outcomeMeasures ?? [];
+  const m = measures.find((x) => x.type === "PRIMARY") ?? measures[0];
+  if (!m?.title) return undefined;
+  const groups: any[] = m.groups ?? [];
+  const counts = new Map<string, string>(
+    (m.denoms?.[0]?.counts ?? []).map((c: any) => [String(c.groupId), String(c.value)]),
+  );
+  const measurements: any[] = m.classes?.[0]?.categories?.[0]?.measurements ?? [];
+  const valueFor = (id: string) => {
+    const x = measurements.find((v) => v.groupId === id);
+    if (!x?.value) return "";
+    if (x.spread) return `${x.value} ± ${x.spread}`;
+    if (x.lowerLimit && x.upperLimit) return `${x.value} (${x.lowerLimit} to ${x.upperLimit})`;
+    return String(x.value);
+  };
+  return {
+    title: String(m.title),
+    timeFrame: m.timeFrame ? String(m.timeFrame) : undefined,
+    unit: m.unitOfMeasure ? String(m.unitOfMeasure) : undefined,
+    groups: groups.slice(0, 4).map((g) => ({
+      title: String(g.title ?? g.id),
+      participants: counts.get(String(g.id)),
+      value: valueFor(String(g.id)),
+    })),
+    pValue: m.analyses?.find((a: any) => a.pValue)?.pValue,
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+export async function trialResult(nctId: string): Promise<TrialOutcome | undefined> {
+  "use cache";
+  cacheLife("weeks");
+  if (!/^NCT\d{8}$/.test(nctId)) return undefined;
+  const study = await getJson<unknown>(SOURCE, `${BASE}/${nctId}?format=json`);
+  return parsePrimaryOutcome(study);
+}
+
+/** Completed trials with posted results first, then active ones, then the rest. */
+export function trialOrder(t: Trial): number {
+  if (t.hasResults) return 0;
+  if (t.status === "COMPLETED") return 1;
+  if (/RECRUITING|ACTIVE|ENROLLING/.test(t.status)) return 2;
+  return 3;
 }

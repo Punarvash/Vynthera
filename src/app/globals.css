@@ -14,6 +14,8 @@
   --surface: #ffffff;
   --muted: #4a5260;
   --line: #e8dfcf;
+  /* Single-series chart fill: a brand-adjacent blue that passes the chart palette checks. */
+  --chart: #2766a8;
 }
 
 @theme inline {
@@ -27,6 +29,7 @@
   --color-surface: var(--surface);
   --color-muted: var(--muted);
   --color-line: var(--line);
+  --color-chart: var(--chart);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-serif-display), ui-serif, Georgia, serif;
 }

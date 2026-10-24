@@ -33,11 +33,14 @@ describe("PubMed XML parsing", () => {
     expect(parsePubMedXml(one)).toHaveLength(1);
   });
 
-  it("builds a MEDLINE-only query with drug synonyms and condition", () => {
+  it("builds a MEDLINE-only query with MeSH, synonym mapping, and retractions excluded", () => {
     const q = buildQuery(["metformin", "glucophage"], "polycystic ovary syndrome", EVIDENCE_TYPES);
-    expect(q).toContain('("metformin"[tiab] OR "glucophage"[tiab])');
-    expect(q).toContain('"polycystic ovary syndrome"[mh]');
-    expect(q).toMatch(/AND medline\[sb\]$/);
+    expect(q).toContain('("metformin"[tiab] OR "metformin"[mh] OR "glucophage"[tiab] OR "glucophage"[mh])');
+    expect(q).toContain('("polycystic ovary syndrome"[tiab] OR (polycystic ovary syndrome))');
+    expect(q).toMatch(/AND medline\[sb\] NOT \("retracted publication"\[pt\]/);
+    const main = buildQuery(["metformin"], undefined, '"randomized controlled trial"[pt]', { mainTopic: true, therapy: true });
+    expect(main).toContain('("metformin"[ti] OR "metformin"[majr])');
+    expect(main).toContain("Therapy/Broad[filter]");
   });
 });
 

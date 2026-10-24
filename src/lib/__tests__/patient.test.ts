@@ -45,7 +45,7 @@ describe("plain-language patient view without AI", () => {
     studies: [],
     preprints: [],
     trials: [],
-    grade: assessGrade([]),
+    grade: assessGrade({ condition: "polycystic ovary syndrome", counts: null, rated: [], conditionPhrases: [], directionsAssessed: false }),
   } as unknown as EvidenceBundle;
 
   it("explains off-label use kindly and adds the insurance question", () => {

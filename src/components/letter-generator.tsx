@@ -76,7 +76,7 @@ export function buildLetter(f: Fields, p: Props, selected: LetterEvidence[], tod
       : p.approval === "approved"
         ? `${drug} is FDA-approved for this indication, as stated in its prescribing information.`
         : `${drug} is supported for this use by the peer-reviewed medical literature listed below.`,
-    selected.length > 0
+    selected.length > 0 && /^(high|moderate|low|very low)$/i.test(p.gradeLabel)
       ? `Using the GRADE approach, the certainty of the published evidence for ${drug} in ${diagnosis} is rated ${p.gradeLabel.toLowerCase()}.`
       : "",
     `In my clinical judgement, ${drug} is medically necessary for this patient, and the alternatives listed above are not appropriate.`,
