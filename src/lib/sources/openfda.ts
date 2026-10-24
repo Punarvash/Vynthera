@@ -105,9 +105,22 @@ export function toDrugLabel(raw: RawLabel): DrugLabel | null {
 const SALT_WORDS =
   /\b(hydrochloride|hcl|hydrobromide|sodium|potassium|calcium|magnesium|sulfate|sulphate|phosphate|acetate|citrate|maleate|mesylate|besylate|tartrate|succinate|fumarate|bromide|chloride|monohydrate|dihydrate|anhydrous|extended-release|er)\b/g;
 
-/** "Metformin Hydrochloride" -> "metformin", so a search for the base drug name matches its salt forms. */
+/** Dosage forms and routes that FDA generic names sometimes include ("riboflavin 5'-phosphate ophthalmic"). */
+const FORM_WORDS =
+  /\b(ophthalmic|otic|nasal|topical|oral|injection|injectable|intravenous|subcutaneous|solution|suspension|tablets?|capsules?|cream|ointment|gel|lotion|spray|patch|inhalation|inhaler|powder|drops|kit|delayed-release|for)\b/g;
+
+/**
+ * "Metformin Hydrochloride" -> "metformin"; "Riboflavin 5'-Phosphate Ophthalmic" -> "riboflavin".
+ * Salt, form and route words are dropped, then leftover fragments with no letters ("5'-").
+ */
 export function baseDrugName(name: string): string {
-  return name.toLowerCase().replace(SALT_WORDS, "").replace(/\s+/g, " ").trim();
+  const words = name
+    .toLowerCase()
+    .replace(SALT_WORDS, " ")
+    .replace(FORM_WORDS, " ")
+    .split(/\s+/)
+    .filter((w) => /\p{L}/u.test(w));
+  return words.length ? words.join(" ").replace(/[-,]+$/, "").trim() : name.toLowerCase().trim();
 }
 
 /** True when a query names this label's drug (generic, base name without salt, or brand). */

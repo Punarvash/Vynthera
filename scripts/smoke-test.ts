@@ -12,6 +12,8 @@ const pages: [string, string][] = [
   ["specialists", "/drug/metformin?tab=specialists&state=TX&city=Houston"],
   ["patient", "/drug/metformin?condition=polycystic+ovary+syndrome&tab=patient"],
   ["biologic", "/drug/adalimumab?tab=evidence"],
+  ["ophthalmic cases", "/search?q=riboflavin&condition=keratoconus"],
+  ["ophthalmic cases tab", "/drug/riboflavin?condition=keratoconus&tab=cases"],
 ];
 
 function text(html: string): string {

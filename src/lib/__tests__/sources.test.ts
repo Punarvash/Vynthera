@@ -135,3 +135,14 @@ it("reads Open Targets drug candidates and clinical stages", async () => {
   ]);
   expect(out.map((d) => [d.name, d.maxPhase])).toEqual([["metformin", 4], ["inositol", 3]]);
 });
+
+it("reduces FDA generic names to the ingredient used in the literature", async () => {
+  const { baseDrugName } = await import("../sources/openfda");
+  expect(baseDrugName("RIBOFLAVIN 5'-PHOSPHATE OPHTHALMIC")).toBe("riboflavin");
+  expect(baseDrugName("riboflavin 5- ophthalmic")).toBe("riboflavin");
+  expect(baseDrugName("METFORMIN HYDROCHLORIDE")).toBe("metformin");
+  expect(baseDrugName("Insulin Glargine")).toBe("insulin glargine");
+  expect(baseDrugName("5-Fluorouracil")).toBe("5-fluorouracil");
+  expect(baseDrugName("Metformin and Sitagliptin")).toBe("metformin and sitagliptin");
+  expect(baseDrugName("Interferon Beta-1a")).toBe("interferon beta-1a");
+});
