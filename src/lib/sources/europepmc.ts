@@ -111,13 +111,7 @@ export async function literatureProfile(drugTerms: string[], condition: string |
     if (r.pubYear) byYear[r.pubYear] = (byYear[r.pubYear] ?? 0) + 1;
     if (r.pmid && typeof r.citedByCount === "number") citations[r.pmid] = r.citedByCount;
   }
-  const total = data.hitCount ?? rows.length;
-  if (rows.length < total) {
-    // The 500 rows are the most relevant, not a random sample, so count every year exactly instead.
-    const exact = await countsByYear(query, Math.max(...Object.keys(byYear).map(Number).filter(Number.isFinite)));
-    if (exact) return { total, sampled: total, byYear: exact, citations, openAccess };
-  }
-  return { total, sampled: rows.length, byYear, citations, openAccess };
+  return { total: data.hitCount ?? rows.length, sampled: rows.length, byYear, citations, openAccess };
 }
 
 function profileQuery(drugTerms: string[], condition: string | undefined): string {
@@ -125,9 +119,16 @@ function profileQuery(drugTerms: string[], condition: string | undefined): strin
   return `${drug}${condition ? ` AND ${conditionTerm(condition, "TITLE_ABS:")}` : ""} AND SRC:MED`;
 }
 
-/** Exact publication counts for each of the last 25 years; null if any year fails, so the chart never shows gaps as zeros. */
-async function countsByYear(query: string, latestYear: number): Promise<Record<string, number> | null> {
+/**
+ * Exact publication counts for each of the 25 years up to latestYear, for when the profile's 500 rows
+ * (the most relevant, not a random sample) do not cover everything. Null if any year fails, so the
+ * chart never shows a gap as zero.
+ */
+export async function countsByYear(drugTerms: string[], condition: string | undefined, latestYear: number): Promise<Record<string, number> | null> {
+  "use cache";
+  cacheLife("days");
   if (!Number.isFinite(latestYear)) return null;
+  const query = profileQuery(drugTerms, condition);
   const years = Array.from({ length: 25 }, (_, i) => latestYear - 24 + i);
   try {
     const counts = await Promise.all(

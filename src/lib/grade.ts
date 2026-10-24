@@ -190,12 +190,13 @@ export function assessGrade(input: GradeInput): GradeAssessment {
   // Reviewers who graded the evidence themselves read the full trials, so their ratings set the bounds.
   const published = publishedRatings(reviews, conditionPhrases);
   if (published.length) {
-    const levels = published.flatMap((p) => p.levels).map((l) => ORDER.indexOf(l));
-    const best = ORDER[Math.min(...levels)];
-    const worst = ORDER[Math.max(...levels)];
+    // Each review's best-rated outcome, then the middle review, so one optimistic or pessimistic review does not decide.
+    const perReview = published.map((p) => Math.min(...p.levels.map((l) => ORDER.indexOf(l)))).sort((a, b) => a - b);
+    const best = ORDER[perReview[Math.floor((perReview.length - 1) / 2)]];
+    const worst = ORDER[Math.max(...published.flatMap((p) => p.levels).map((l) => ORDER.indexOf(l)))];
     const who = published.some((p) => p.cochrane) ? "Cochrane and other systematic reviews" : "Systematic reviews";
     if (ORDER.indexOf(level) < ORDER.indexOf(best)) {
-      rationale.push(`Set to ${DEFINITIONS[best].label} to match the published ratings: ${who.toLowerCase()} of this use rate the evidence at most ${DEFINITIONS[best].label.toLowerCase()}.`);
+      rationale.push(`Set to ${DEFINITIONS[best].label} to match the published ratings: ${who.toLowerCase()} of this use typically rate the evidence ${DEFINITIONS[best].label.toLowerCase()} at best.`);
       level = best;
     } else if (ORDER.indexOf(level) > ORDER.indexOf(worst)) {
       rationale.push(`Set to ${DEFINITIONS[worst].label} to match the published ratings: ${who.toLowerCase()} of this use rate the evidence at least ${DEFINITIONS[worst].label.toLowerCase()}.`);

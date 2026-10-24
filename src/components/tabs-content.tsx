@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ArrowDownCircle, CheckCircle2, MinusCircle } from "lucide-react";
 import { ArticleCard } from "./article-card";
 import { EvidencePyramid, PublicationTimeline } from "./evidence-charts";
@@ -9,13 +10,14 @@ import { LetterGenerator, type LetterEvidence } from "./letter-generator";
 import { ShowMore } from "./show-more";
 import { SourceProblems } from "./source-problems";
 import { TrialCard } from "./trial-card";
-import { Card, SectionHeading, SourceLink } from "./ui";
+import { Card, LoadingBlock, SectionHeading, SourceLink } from "./ui";
 import { DESIGN_LABEL } from "@/lib/design";
 import { labelStatusText } from "@/lib/label-status";
 import { loadCases, loadEvidence } from "@/lib/loaders";
-import { PAGE_SIZE } from "@/lib/evidence";
+import { drugTerms, PAGE_SIZE } from "@/lib/evidence";
+import { countsByYear, type LiteratureProfile } from "@/lib/sources/europepmc";
 import { truncate } from "@/lib/text";
-import type { Article } from "@/lib/types";
+import type { Article, DrugLabel } from "@/lib/types";
 
 function toCitation(a: Article): LetterEvidence {
   return {
@@ -47,6 +49,17 @@ const DOMAIN_STYLE = {
   downgraded: { icon: ArrowDownCircle, tone: "text-[#8a1c12]", text: "Lowered one level" },
   "not-assessed": { icon: MinusCircle, tone: "text-muted", text: "Not assessed" },
 } as const;
+
+/** Exact counts per year load after the rest of the tab; the relevance sample shows if they fail. */
+async function Timeline({ drug, label, condition, profile }: { drug: string; label: DrugLabel | null; condition?: string; profile: LiteratureProfile }) {
+  const latest = Math.max(...Object.keys(profile.byYear).map(Number).filter(Number.isFinite));
+  const exact = profile.sampled < profile.total ? await countsByYear(drugTerms(drug, label), condition, latest) : null;
+  return exact ? (
+    <PublicationTimeline byYear={exact} total={profile.total} sampled={profile.total} />
+  ) : (
+    <PublicationTimeline byYear={profile.byYear} total={profile.total} sampled={profile.sampled} />
+  );
+}
 
 const LEVEL_LABEL = { high: "High", moderate: "Moderate", low: "Low", "very-low": "Very low" } as const;
 
@@ -144,7 +157,9 @@ export async function EvidenceTab({ drug, condition }: { drug: string; condition
         </Card>
         {e.profile && Object.keys(e.profile.byYear).length > 0 && (
           <Card>
-            <PublicationTimeline byYear={e.profile.byYear} total={e.profile.total} sampled={e.profile.sampled} />
+            <Suspense fallback={<LoadingBlock label="Counting publications per year…" lines={3} />}>
+              <Timeline drug={e.drug} label={e.label} condition={condition} profile={e.profile} />
+            </Suspense>
           </Card>
         )}
       </div>

@@ -75,7 +75,10 @@ export async function applicationsForDrug(names: string[]): Promise<Application[
   // Old, widely made drugs (amoxicillin, metformin) have hundreds of applications; read up to 400.
   const first = await page(0);
   const total = Math.min(first.meta?.results?.total ?? 0, 400);
-  const rest = await Promise.all(Array.from({ length: Math.max(0, Math.ceil(total / 100) - 1) }, (_, i) => page((i + 1) * 100)));
+  // Later pages are extra detail: a rate-limit error there keeps the first page instead of failing the tab.
+  const rest = await Promise.all(
+    Array.from({ length: Math.max(0, Math.ceil(total / 100) - 1) }, (_, i) => page((i + 1) * 100).catch(() => ({ results: [] }))),
+  );
   return [first, ...rest]
     .flatMap((d) => d.results ?? [])
     .map(toApplication)

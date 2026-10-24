@@ -219,7 +219,17 @@ export async function getEvidence(name: string, condition: string | undefined): 
     condition ? attempt("PubMed", problems, [] as Article[], () => cochraneReviews(terms, condition)) : Promise.resolve([] as Article[]),
   ]);
 
-  const synonyms = [...new Set([...(condition ? abbreviationSynonyms(condition) : []), ...meshEntryTerms, ...lit.conditionMesh.flatMap((m) => [m, uninvert(m)])])];
+  const expansions = condition ? abbreviationSynonyms(condition) : [];
+  // PubMed also maps single words to unrelated headings ("strep throat" -> "Streptococcus"), so a mapped
+  // heading counts as a synonym only if it shares a word with the condition or its expansions.
+  const conditionWords = new Set(
+    [condition ?? "", ...expansions].flatMap((c) => c.toLowerCase().split(/[^a-z0-9]+/)).filter((w) => w.length > 2),
+  );
+  const related = (m: string) => m.toLowerCase().split(/[^a-z0-9]+/).some((w) => conditionWords.has(w));
+  const mapped = lit.conditionMesh.filter(related);
+  // The same check for the MeSH record looked up for the condition: its entry terms are kept only if one is related.
+  const entryTerms = meshEntryTerms.some(related) ? meshEntryTerms : [];
+  const synonyms = [...new Set([...expansions, ...entryTerms, ...mapped.flatMap((m) => [m, uninvert(m)])])];
 
   const known = new Set(lit.articles.map((a) => a.id));
   const extra = cochrane.filter((a) => !known.has(a.id)).map((a) => ({ ...a, aboutDrug: isAboutDrug(a, terms) }));
