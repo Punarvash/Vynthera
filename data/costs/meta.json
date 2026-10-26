@@ -1,5 +1,5 @@
 {
-  "importedAt": "2026-10-22",
+  "importedAt": "2026-10-26",
   "nadac": {
     "title": "NADAC (National Average Drug Acquisition Cost) 2026",
     "url": "https://download.medicaid.gov/data/nadac-national-average-drug-acquisition-cost-10-21-2026.csv",
@@ -16,5 +16,37 @@
     "url": "https://data.cms.gov/sites/default/files/2026-06/98218f98-166c-4723-8438-c344a4ef96a6/DSD_PTD_RY26_P04_V10_DY24_BGM.csv",
     "year": 2024,
     "rows": 3625
+  },
+  "nadacHistory": {
+    "years": [
+      2025,
+      2026
+    ],
+    "months": 22
+  },
+  "planCoverage": {
+    "url": "https://data.cms.gov/sites/default/files/2026-09/903ba816-d276-4c17-9b5a-0224bbd4e949/2026_20260916.zip",
+    "asOf": "2026-09-16",
+    "plans": 5496
+  },
+  "partB": {
+    "url": "https://www.cms.gov/files/zip/october-2026-medicare-part-b-payment-limit-files-final.zip",
+    "quarter": "October 1, 2026 through December 31, 2026",
+    "rows": 917
+  },
+  "partBSpending": {
+    "url": "https://data.cms.gov/sites/default/files/2026-06/6616fc91-eb70-404c-9f27-1448e47a3a73/DSD_PTB_RY26_P06_V10_DYT24_HCPCS-%20260602.csv",
+    "year": 2024,
+    "rows": 799
+  },
+  "negotiated": {
+    "url": "https://www.cms.gov/files/zip/selected-drug-list-negotiated-prices-also-known-maximum-fair-prices-statutezip.zip",
+    "asOf": "2026-09-21",
+    "rows": 36
+  },
+  "va": {
+    "url": "https://department.va.gov/procurement-acquisition-and-logistics/wp-content/uploads/sites/56/2026/10/TPharmPrices2026-10-15.xlsx",
+    "asOf": "2026-10-15",
+    "rows": 7881
   }
 }
