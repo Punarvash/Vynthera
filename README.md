@@ -9,7 +9,7 @@ Drug evidence for busy physicians: search a drug, condition or mechanism and get
   - **Evidence:** GRADE certainty with its reasoning; a plain "what is uncertain" statement; FDA approval status; MEDLINE studies by design; ClinicalTrials.gov trials; badged preprints; funding badges. **Generate letter** creates a medical necessity letter; patient details stay in the browser.
   - **Cases:** published case reports (and case preprints) with funding badges. **Copy citations**.
   - **Manufacturer:** brand (NDA/BLA) and generic (ANDA) holders from Drugs@FDA; trials run by the manufacturer; MEDLINE articles with manufacturer-affiliated authors or funding, labelled.
-  - **Costs:** pharmacy acquisition cost per strength (Medicaid NADAC, weekly); Medicare Part D cost per fill, per unit and per patient; same-class comparison; "last updated" on every figure. Out-of-pocket and per-plan coverage are marked unavailable (no free source yet). **Copy cost summary**.
+  - **Costs:** summary tiles (pharmacy cost, Medicare cost per patient, Medicare plan coverage); generic and biosimilar availability (Drugs@FDA); Medicare negotiated prices; a prescription calculator (strength, units per day, 30/60/90 days) with the 2026 standard Part D benefit and typical plan copays; coverage by insurer across every Medicare drug plan (plans covering, usual tier, prior authorization, step therapy, typical cost) and by state; an ACA Marketplace lookup by ZIP code (when `MARKETPLACE_API_KEY` is set; get a free key at developer.cms.gov/marketplace-api); pharmacy cost per product (NADAC) with a 22-month price trend; Medicare Part D and Part B spending; Part B payment limits (ASP + 6%); VA Federal Supply Schedule prices; cheaper drugs in the same class; ways to save. **Copy cost summary**.
   - **Specialists:** clinicians in a chosen state, city and specialty who prescribed the drug in Medicare Part D, most experienced first, with NPI Registry-verified specialty, address and a **Call** button. No messaging through the site.
   - **Patient info:** physician view (boxed warning, mechanism, dosage, side-effect table with frequencies, warnings, trial counts, animal toxicology) and a plain-language patient view (benefits, risks, drawbacks, questions to ask), with **Print handout**.
 
@@ -17,7 +17,7 @@ Drug evidence for busy physicians: search a drug, condition or mechanism and get
 
 | Workflow | When | What |
 |---|---|---|
-| Import cost data | Mondays 06:17 UTC, or **Actions → Import cost data → Run workflow** | Downloads the newest NADAC and Medicare Part D Spending datasets into `data/costs/` and commits them. Also records the Part D Prescribers API used by Specialists. If one source fails, last week's data is kept and the run is marked failed. |
+| Import cost data | Mondays 06:17 UTC, or **Actions → Import cost data → Run workflow** | Downloads the newest NADAC (and last year's, for the price trend), Medicare Part D and Part B Spending, the CMS monthly Part D formulary files (summarized by drug, insurer and state), Part B ASP payment limits, CMS negotiated prices and the VA price list into `data/costs/` and commits them. Also records the Part D Prescribers API used by Specialists. If one source fails, last week's data is kept and the run is marked failed. |
 | Live smoke test | Manual only | Builds the site and loads every tab against the real APIs, printing what each tab shows and any unavailable source. |
 
 ## How judgements are made
@@ -47,7 +47,7 @@ npm test && npm run lint && npm run typecheck
 
 ## Data sources
 
-openFDA / DailyMed (labels, Drugs@FDA), PubMed E-utilities (MEDLINE literature), Europe PMC (preprints), ClinicalTrials.gov API v2 (trials, sponsors), Open Targets Platform (mechanisms, condition and target → drug), MedlinePlus Connect (patient information), Medicaid NADAC and CMS Medicare Part D Spending (costs), CMS Part D Prescribers by Provider and Drug and the NPPES NPI Registry (specialists).
+openFDA / DailyMed (labels, Drugs@FDA), PubMed E-utilities (MEDLINE literature), Europe PMC (preprints), ClinicalTrials.gov API v2 (trials, sponsors), Open Targets Platform (mechanisms, condition and target → drug), MedlinePlus Connect (patient information), Medicaid NADAC, CMS Medicare Part D and Part B Spending, CMS Part D formulary files, CMS ASP pricing files, CMS negotiated prices, the VA Federal Supply Schedule and the HealthCare.gov Marketplace API (costs and coverage), CMS Part D Prescribers by Provider and Drug and the NPPES NPI Registry (specialists).
 
 ## Privacy
 

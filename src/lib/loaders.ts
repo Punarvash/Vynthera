@@ -3,6 +3,7 @@ import { getCases, getDrugOverview, getEvidence } from "./evidence";
 import { summarizeEvidence } from "./ai-summary";
 import { describeError } from "./http";
 import { getCostBundle } from "./costs";
+import { getCostDetails } from "./cost-details";
 import { getManufacturerBundle } from "./manufacturer";
 import { plainLanguage } from "./patient-info";
 import { medlinePlusForRxcuis, type MedlinePlusEntry } from "./sources/medlineplus";
@@ -14,6 +15,7 @@ export const loadEvidence = cache(getEvidence);
 export const loadCases = cache(getCases);
 export const loadManufacturer = cache(getManufacturerBundle);
 export const loadCosts = cache(getCostBundle);
+export const loadCostDetails = cache(async (drug: string) => getCostDetails(await loadCosts(drug)));
 export const loadSummary = cache(async (drug: string, condition: string | undefined) =>
   summarizeEvidence(await loadEvidence(drug, condition)),
 );

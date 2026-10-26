@@ -5,10 +5,10 @@ import type { PlanCoverage, PlanCoverageFile } from "../../src/lib/cost-data.ts"
 /** Insurer families, matched against plan and contract names ("AARP Medicare Rx Saver from UHC" -> UnitedHealthcare). */
 const INSURERS: [string, RegExp][] = [
   ["UnitedHealthcare", /\b(unitedhealthcare|united healthcare|uhc|aarp|care improvement plus|sierra health|optum)\b/i],
-  ["Humana", /\b(humana|cha hmo|cariten|arcadian)\b/i],
+  ["Humana", /\b(humana|cha hmo|cariten|arcadian|emphesys|careplus)\b/i],
   ["Aetna (CVS Health)", /\b(aetna|silverscript|coventry)\b/i],
   ["Wellcare (Centene)", /\b(wellcare|allwell|centene|health net|harmony health|ambetter|peach state|sunshine health|meridian)\b/i],
-  ["Elevance (Anthem, Wellpoint)", /\b(anthem|elevance|wellpoint|healthkeepers|amerigroup|simply|community insurance company|empire)\b/i],
+  ["Elevance (Anthem, Wellpoint)", /\b(anthem|elevance|wellpoint|healthkeepers|amerigroup|simply|community insurance company|empire|freedom health|optimum healthcare)\b/i],
   ["HealthSpring (formerly Cigna)", /\b(healthspring|cigna)\b/i],
   ["Kaiser Permanente", /\bkaiser\b/i],
   ["Blue Cross Blue Shield plans", /\b(blue ?cross|blue ?shield|bluecross|blueshield|bcbs|highmark|florida blue|premera|regence|horizon|excellus|independence|carefirst|wellmark|capital blue|hcsc|health care service corporation|medicareblue|prescription blue|blue medicare|bluemedicare|bluerx|blue rx|blue care)\b/i],

@@ -11,6 +11,10 @@ export interface CalculatorProduct {
   brand: boolean;
 }
 
+function whole(n: number): string {
+  return Number.isInteger(n) ? `$${n.toLocaleString("en-US")}` : `$${n.toFixed(2)}`;
+}
+
 function money(n: number): string {
   return n < 1 ? `$${n.toFixed(2)}` : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -25,11 +29,14 @@ export function CostCalculator({
   products,
   medicarePerUnit,
   insulin,
+  planCost,
 }: {
   products: CalculatorProduct[];
   /** Medicare Part D gross cost per unit for generic and brand versions, when known. */
   medicarePerUnit: { generic?: number; brand?: number };
   insulin: boolean;
+  /** What most Medicare plans charge for a one-month fill, from their filed formularies. */
+  planCost?: { copay?: number; coinsurance?: number; plans: number; covered: number };
 }) {
   const id = useId();
   const [index, setIndex] = useState(0);
@@ -121,19 +128,26 @@ export function CostCalculator({
         <div className="rounded-md bg-cream/70 p-3">
           <dt className="text-sm font-medium">Medicare patient pays (estimate)</dt>
           <dd className="text-2xl font-semibold tabular-nums">{money(est.yearlyPatient)}<span className="text-base font-normal"> / year</span></dd>
+          {planCost && (planCost.copay !== undefined || planCost.coinsurance !== undefined) && (
+            <dd className="text-sm font-medium">
+              Most Medicare plans charge{" "}
+              {planCost.copay !== undefined ? `${whole(planCost.copay)} a month` : `${Math.round((planCost.coinsurance ?? 0) * 100)}% (about ${money(gross * (planCost.coinsurance ?? 0))})`}
+              {days !== 30 ? " for a one-month supply" : ""}.
+            </dd>
+          )}
           <dd className="text-sm text-muted">
             {insulin
               ? `Insulin is capped at $${PART_D_2026.insulinMonthlyCap} a month.`
-              : `First fill ${money(est.firstFill)}, then about ${money(est.laterFill)} a fill${est.hitsCap ? `; capped at ${money(PART_D_2026.outOfPocketCap)} a year` : ""}.`}
+              : `Standard benefit: first fill ${money(est.firstFill)}, then about ${money(est.laterFill)} a fill${est.hitsCap ? `; capped at ${whole(PART_D_2026.outOfPocketCap)} a year` : ""}.`}
           </dd>
         </div>
       </dl>
       <p className="mt-3 text-sm text-muted">
-        Patient estimate uses the {PART_D_2026.year} standard Medicare drug benefit: {money(PART_D_2026.deductible)} deductible, then{" "}
-        {PART_D_2026.coinsurance * 100}% coinsurance, with a {money(PART_D_2026.outOfPocketCap)} yearly cap, for this drug alone and{" "}
+        Patient estimate uses the {PART_D_2026.year} standard Medicare drug benefit: {whole(PART_D_2026.deductible)} deductible, then{" "}
+        {PART_D_2026.coinsurance * 100}% coinsurance, with a {whole(PART_D_2026.outOfPocketCap)} yearly cap, for this drug alone and{" "}
         {fillsPerYear} fills a year. Most plans charge flat copays instead; see the plan table below. With Extra Help
-        <InfoTip term="extraHelp" label="Extra Help" />, copays are at most {money(PART_D_2026.extraHelp.generic)} (generic) or{" "}
-        {money(PART_D_2026.extraHelp.brand)} (brand).
+        <InfoTip term="extraHelp" label="Extra Help" />, copays are at most {whole(PART_D_2026.extraHelp.generic)} (generic) or{" "}
+        {whole(PART_D_2026.extraHelp.brand)} (brand).
       </p>
     </div>
   );

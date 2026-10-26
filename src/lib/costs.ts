@@ -90,6 +90,11 @@ export function money(n: number): string {
     : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** Copays and fixed amounts: "$0", "$47", "$5.10". */
+export function dollars(n: number): string {
+  return Number.isInteger(n) ? `$${n.toLocaleString("en-US")}` : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export interface ClassComparison {
   name: string;
   isThisDrug: boolean;

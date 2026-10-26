@@ -22,6 +22,10 @@ const pages: [string, string][] = [
   ["antibiotic: patient", "/drug/amoxicillin?condition=sinusitis&tab=patient"],
   ["everyday name", "/drug/atorvastatin?condition=high+cholesterol&tab=evidence"],
   ["off-label check", "/drug/sertraline?condition=premature+ejaculation&tab=evidence"],
+  ["costs: negotiated brand", "/drug/apixaban?tab=costs"],
+  ["costs: clinic-given biologic", "/drug/infliximab?tab=costs"],
+  ["costs: biologic with biosimilars", "/drug/adalimumab?tab=costs"],
+  ["costs: 2027 negotiated", "/drug/semaglutide?tab=costs"],
 ];
 
 function text(html: string): string {
@@ -55,7 +59,7 @@ for (const [name, path] of pages) {
   const footerStart = t.indexOf("Medical disclaimer.");
   const footerEnd = t.indexOf("pending legal review.");
   const body = footerStart >= 0 && footerEnd > footerStart ? t.slice(0, footerStart) + t.slice(footerEnd + 21) : t;
-  console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, 5000));
+  console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, path.includes("tab=costs") ? 12000 : 5000));
 }
 if (failed) process.exitCode = 1;
 export {};
