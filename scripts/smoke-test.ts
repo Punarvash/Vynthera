@@ -55,8 +55,17 @@ function text(html: string): string {
 let failed = false;
 for (const [name, path] of pages) {
   const started = performance.now();
-  const res = await fetch(base + path, { redirect: "follow" });
-  const html = await res.text();
+  let res: Response;
+  let html: string;
+  try {
+    res = await fetch(base + path, { redirect: "follow", signal: AbortSignal.timeout(180_000) });
+    html = await res.text();
+  } catch (err) {
+    // A page that never finishes is a failure, but keep checking the others.
+    failed = true;
+    console.log(`\n=== ${name} (no response after ${Math.round(performance.now() - started)} ms) ${path}\n!! ${err instanceof Error ? err.message : String(err)}`);
+    continue;
+  }
   const t = text(html);
   const ms = Math.round(performance.now() - started);
   const problems = [...t.matchAll(/(\S+(?: \S+)?) is not responding right now/g)].map((m) => m[1]).join(", ");
