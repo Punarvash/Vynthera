@@ -5,6 +5,11 @@ const base = process.argv[2] ?? "http://localhost:3000";
 const pages: [string, string][] = [
   ["search: condition", "/search?q=polycystic+ovary+syndrome"],
   ["search: mechanism", "/search?q=GLP-1+receptor+agonist"],
+  ["search: drug name stays on results", "/search?q=amoxicillin"],
+  ["search: typo", "/search?q=amoxacilin"],
+  ["search: condition typo", "/search?q=strep+thorat"],
+  ["suggest: typo", "/api/suggest?q=albutorol"],
+  ["suggest: condition", "/api/suggest?q=diabetis&kind=condition"],
   ["evidence", "/drug/metformin?condition=polycystic+ovary+syndrome&tab=evidence"],
   ["cases", "/drug/metformin?condition=polycystic+ovary+syndrome&tab=cases"],
   ["manufacturer", "/drug/metformin?tab=manufacturer"],

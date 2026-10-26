@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
+import { AutocompleteInput } from "@/components/autocomplete-input";
 import { DrugTabs } from "@/components/drug-tabs";
 import { SearchForm } from "@/components/search-form";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
@@ -44,16 +46,18 @@ async function DrugHeading({ drug }: { drug: string }) {
   );
 }
 
-function ConditionForm({ drug, condition }: { drug: string; condition?: string }) {
+function ConditionForm({ drug, condition, tab }: { drug: string; condition?: string; tab?: string }) {
   return (
     <form method="get" action={`/drug/${encodeURIComponent(drug)}`} className="no-print flex flex-wrap items-end gap-2">
+      {tab && <input type="hidden" name="tab" value={tab} />}
       <div className="min-w-0 flex-[1_1_16rem]">
         <label htmlFor="condition-filter" className="mb-1 block font-semibold">
           Patient&apos;s condition <span className="font-normal text-muted">(narrows the evidence and checks off-label use)</span>
         </label>
-        <input
+        <AutocompleteInput
           id="condition-filter"
           name="condition"
+          kinds={["condition"]}
           defaultValue={condition ?? ""}
           placeholder="e.g. polycystic ovary syndrome"
           className="w-full rounded-lg border border-[#cbbd9f] bg-surface px-3 py-2 focus:border-navy"
@@ -62,6 +66,15 @@ function ConditionForm({ drug, condition }: { drug: string; condition?: string }
       <button type="submit" className="rounded-lg border border-navy bg-surface px-4 py-2 font-semibold text-navy hover:bg-cream">
         {condition ? "Update" : "Apply"}
       </button>
+      {condition && (
+        <p className="w-full rounded-md bg-cream/70 px-3 py-2 text-[0.95rem]">
+          Evidence, cases, off-label status and specialists are shown for <strong>{condition}</strong>. Costs, manufacturer and the FDA
+          label are the same for every use.{" "}
+          <Link href={`/drug/${encodeURIComponent(drug)}${tab ? `?tab=${tab}` : ""}`} className="font-semibold text-navy underline">
+            Show all uses instead
+          </Link>
+        </p>
+      )}
     </form>
   );
 }
@@ -78,7 +91,7 @@ async function DrugContent({ params, searchParams }: Props) {
       <Suspense fallback={<Skeleton className="h-16 w-2/3" />}>
         <DrugHeading drug={drug} />
       </Suspense>
-      <ConditionForm drug={drug} condition={condition} />
+      <ConditionForm drug={drug} condition={condition} tab={tab} />
       <Suspense fallback={<Card><LoadingBlock label="Loading key takeaways…" lines={4} /></Card>}>
         <SummaryCard {...props} />
       </Suspense>

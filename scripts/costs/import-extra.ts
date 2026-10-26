@@ -1,6 +1,6 @@
 // Weekly imports beyond NADAC and Part D spending: Medicare plan coverage, Part B prices,
 // negotiated Medicare prices and VA Federal Supply Schedule prices. Called from import.ts.
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { CostMeta, NegotiatedFile, PartBFile, PartBSpendingFile, PlanCoverageFile, VaFile } from "../../src/lib/cost-data.ts";
 import { collect, csvRecords, download, extract, fetchOk, pipeRecords, zipEntries, zipLines } from "./io.ts";
 import { pickCsv, pickDataset, toIsoDate } from "./parse.ts";
@@ -160,4 +160,18 @@ export async function importVa(meta: CostMeta): Promise<void> {
   await save("va.json", file);
   meta.va = { url, asOf, rows: rows.length };
   console.log(`VA FSS: ${rows.length} products, prices of ${asOf}`);
+}
+
+/** Condition names for search suggestions, from NLM Clinical Tables (consumer and clinical names). */
+export async function importConditionNames(): Promise<void> {
+  const names = new Set<string>();
+  for (const letter of "abcdefghijklmnopqrstuvwxyz") {
+    const url = `https://clinicaltables.nlm.nih.gov/api/conditions/v3/search?terms=${letter}&maxList=500&df=consumer_name,primary_name`;
+    const data = (await (await fetchOk(url)).json()) as [number, string[], unknown, string[][]];
+    for (const row of data[3] ?? []) for (const n of row) if (n && n.length < 80) names.add(n.trim());
+  }
+  if (names.size < 300) throw new Error(`Condition list looks wrong: only ${names.size} names`);
+  await mkdir(new URL("../search/", OUT_DIR), { recursive: true });
+  await writeFile(new URL("../search/conditions.json", OUT_DIR), `${JSON.stringify({ source: "NLM Clinical Tables (conditions)", names: [...names].sort() })}\n`);
+  console.log(`Search: ${names.size} condition names`);
 }

@@ -83,3 +83,20 @@ it("folds FDA typos into the common spelling", () => {
 it("searches abbreviations with their full names", () => {
   expect(conditionClause("T2DM")).toContain('"type 2 diabetes mellitus"[tiab]');
 });
+
+describe("typo-tolerant matching", async () => {
+  const { editDistance, matchScore, normalize } = await import("../suggest");
+  const e = (s: string) => ({ norm: normalize(s), words: normalize(s).split(" ") });
+  it("counts adjacent swaps as one edit", () => {
+    expect(editDistance("metfromin", "metformin")).toBe(1);
+    expect(editDistance("albutorol", "albuterol")).toBe(1);
+  });
+  it("matches prefixes, words and misspellings, not unrelated names", () => {
+    expect(matchScore("albut", e("Albuterol"))).toBeGreaterThan(85);
+    expect(matchScore("thro", e("Strep throat"))).toBe(85);
+    expect(matchScore("amoxacillin", e("Amoxicillin"))).toBeGreaterThan(50);
+    expect(matchScore("strep thorat", e("Strep throat"))).toBeGreaterThan(40);
+    expect(matchScore("asp", e("Metformin"))).toBe(0);
+    expect(matchScore("lisinopril", e("Losartan"))).toBe(0);
+  });
+});

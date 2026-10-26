@@ -1,7 +1,8 @@
 import clsx from "clsx";
 import { Search } from "lucide-react";
+import { AutocompleteInput } from "./autocomplete-input";
 
-/** Plain GET form: works without JavaScript and keeps the query in the URL for sharing. */
+/** GET form with typo-tolerant suggestions; still works without JavaScript and keeps the query in the URL for sharing. */
 export function SearchForm({
   size = "large",
   defaultQuery = "",
@@ -18,13 +19,13 @@ export function SearchForm({
         <label htmlFor={`q-${size}`} className={large ? "mb-1 block font-semibold" : "sr-only"}>
           Drug, condition or mechanism
         </label>
-        <Search aria-hidden className={clsx("pointer-events-none absolute left-3 text-muted", large ? "bottom-4 size-5" : "top-3 size-4")} />
-        <input
+        <Search aria-hidden className={clsx("pointer-events-none absolute left-3 z-10 text-muted", large ? "bottom-4 size-5" : "top-3 size-4")} />
+        <AutocompleteInput
           id={`q-${size}`}
           name="q"
+          kinds={["drug", "condition", "class"]}
           required
           defaultValue={defaultQuery}
-          autoComplete="off"
           placeholder={large ? "e.g. metformin, polycystic ovary syndrome, GLP-1 agonist" : "Drug, condition or mechanism"}
           className={clsx(
             "w-full rounded-lg border border-[#cbbd9f] bg-surface pl-10 text-ink placeholder:text-[#6b6f78] focus:border-navy",
@@ -36,11 +37,11 @@ export function SearchForm({
         <label htmlFor={`condition-${size}`} className={large ? "mb-1 block font-semibold" : "sr-only"}>
           Patient&apos;s condition <span className="font-normal text-muted">(optional, used to check off-label use)</span>
         </label>
-        <input
+        <AutocompleteInput
           id={`condition-${size}`}
           name="condition"
+          kinds={["condition"]}
           defaultValue={defaultCondition}
-          autoComplete="off"
           placeholder={large ? "e.g. polycystic ovary syndrome" : "Condition (optional)"}
           className={clsx(
             "w-full rounded-lg border border-[#cbbd9f] bg-surface px-3 text-ink placeholder:text-[#6b6f78] focus:border-navy",

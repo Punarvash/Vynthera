@@ -3,10 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
-  // Cost data is read from disk at runtime (src/lib/costs.ts); make sure it ships with the server bundle.
+  // Cost and search data are read from disk at runtime (src/lib/costs.ts, src/lib/suggest.ts); ship them with the server bundle.
   outputFileTracingIncludes: {
-    "/drug/*": ["./data/costs/**/*"],
-    "/drug/[name]": ["./data/costs/**/*"],
+    "/drug/*": ["./data/costs/**/*", "./data/search/**/*"],
+    "/drug/[name]": ["./data/costs/**/*", "./data/search/**/*"],
+    "/search": ["./data/costs/**/*", "./data/search/**/*"],
+    "/api/suggest": ["./data/costs/**/*", "./data/search/**/*"],
   },
   turbopack: {
     rules: {
