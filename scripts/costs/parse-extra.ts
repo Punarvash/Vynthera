@@ -236,7 +236,17 @@ export class TopPrescribers {
   private people = new Map<string, [string, string, string, string, string]>();
 
   /** `notOverall`: prescriber types left out of the overall list (they still count for their own type). */
-  constructor(private types: Set<string>, private notOverall?: RegExp, private maxAll = 15, private maxPerType = 5) {}
+  private types: Set<string>;
+  private notOverall?: RegExp;
+  private maxAll: number;
+  private maxPerType: number;
+
+  constructor(types: Set<string>, notOverall?: RegExp, maxAll = 15, maxPerType = 5) {
+    this.types = types;
+    this.notOverall = notOverall;
+    this.maxAll = maxAll;
+    this.maxPerType = maxPerType;
+  }
 
   header(fields: string[]): void {
     const names = fields.map((f) => f.replace(/^﻿/, "").trim());
