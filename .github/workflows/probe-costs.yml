@@ -13,24 +13,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Discover datasets
-        run: node scripts/probe/costs-sources.ts
-      - name: Inspect the Part D formulary files
+      - name: Discover links
+        run: node scripts/probe/costs-sources-2.ts
+      - name: Inspect files
+        shell: bash
         run: |
-          url=$(node -e 'console.log(require("./probe-urls.json").formulary ?? "")')
-          if [ -z "$url" ]; then echo "No formulary URL"; exit 0; fi
-          curl -sSL -A "Vynthera data probe" -o formulary.zip "$url"
-          ls -la formulary.zip
-          unzip -l formulary.zip | head -40
-          for f in $(unzip -Z1 formulary.zip | head -20); do
-            echo "=== $f"
-            case "$f" in
-              *.zip) unzip -p formulary.zip "$f" > inner.zip; unzip -l inner.zip | head; for g in $(unzip -Z1 inner.zip); do echo "--- $g"; unzip -p inner.zip "$g" | head -c 1200; echo; done ;;
-              *) unzip -p formulary.zip "$f" | head -c 1200; echo ;;
-            esac
-          done
-      - name: Inspect Orange Book and Part B spending
-        run: |
-          curl -sSL -A "Vynthera data probe" -o ob.zip https://www.fda.gov/media/76860/download && unzip -l ob.zip && for f in $(unzip -Z1 ob.zip); do echo "=== $f"; unzip -p ob.zip "$f" | head -5; done
-          url=$(node -e 'console.log(require("./probe-urls.json").partb ?? "")')
-          if [ -n "$url" ]; then curl -sSL "$url" | head -c 2000; fi
+          set +e
+          u() { node -e "console.log(require('./probe-urls.json')['$1'] ?? '')"; }
+          peek_zip() {
+            echo "##### $1"; unzip -l "$1" | head -30
+            unzip -Z1 "$1" | while IFS= read -r f; do
+              case "$f" in */) continue ;; esac
+              echo "=== $f"
+              case "$f" in
+                *pharmacy*) echo "(skipped)";;
+                *.zip) unzip -p "$1" "$f" > inner.zip; unzip -Z1 inner.zip | while IFS= read -r g; do echo "--- $g ($(unzip -p inner.zip "$g" | wc -l) lines)"; unzip -p inner.zip "$g" | head -4 | cut -c1-700; done ;;
+                *.txt|*.csv) echo "($(unzip -p "$1" "$f" | wc -l) lines)"; unzip -p "$1" "$f" | head -4 | cut -c1-700 ;;
+                *) echo "(binary)";;
+              esac
+            done
+          }
+          for k in asp aspCrosswalk orangeBook; do url=$(u $k); [ -n "$url" ] && curl -sSL -A "Vynthera data probe" -o $k.zip "$url" && peek_zip $k.zip; done
+          for k in purple partb; do url=$(u $k); [ -n "$url" ] && { echo "##### $k"; curl -sSL -A "Vynthera data probe" "$url" | head -5 | cut -c1-1500; }; done
+          url=$(u va); [ -n "$url" ] && { echo "##### va $url"; curl -sSL -A "Vynthera data probe" -o va.bin "$url"; ls -la va.bin; file va.bin; }
+          url=$(u formulary)
+          if [ -n "$url" ]; then
+            time curl -sSL -A "Vynthera data probe" -o formulary.zip "$url"
+            peek_zip formulary.zip
+          fi
