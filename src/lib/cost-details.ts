@@ -19,6 +19,7 @@ import { demoNegotiated, demoPartB, demoPlanCoverage, demoVa } from "./demo/cost
 import { applicationsForDrug } from "./sources/drugsfda";
 import { getLabels } from "./sources/openfda";
 import { marketplaceEnabled } from "./sources/marketplace";
+import { productRxcuis } from "./sources/rxnav";
 
 const DATA_DIR = path.join(process.cwd(), "data", "costs");
 
@@ -252,19 +253,23 @@ export async function getCostDetails(bundle: CostBundle): Promise<CostDetails> {
   const files = await loadExtraFiles();
   const names = [...new Set([base.drug, base.label?.genericName, ...(base.label?.brandNames ?? [])].filter((n): n is string => Boolean(n)).map((n) => n.toLowerCase()))];
 
-  const [labels, apps] = await Promise.all([
+  const [labels, apps, rxnorm] = await Promise.all([
     attempt("openFDA", base.problems, [], () => getLabels(base.drug)),
     attempt("openFDA (Drugs@FDA)", base.problems, [], () => applicationsForDrug([...new Set([base.label?.genericName, base.drug].filter((n): n is string => Boolean(n)))])),
+    // All strengths and forms; a label lists only its own products, which can be an unusual form.
+    attempt("RxNorm", base.problems, [] as string[], () => productRxcuis(base.drug)),
   ]);
-  const rxcuis = [...new Set([...(base.label?.rxcuis ?? []), ...labels.filter((l) => l.genericName === base.label?.genericName || l.genericName === base.drug).flatMap((l) => l.rxcuis)])];
+  const rxcuis = [
+    ...new Set([...rxnorm, ...(base.label?.rxcuis ?? []), ...labels.filter((l) => l.genericName === base.label?.genericName || l.genericName === base.drug).flatMap((l) => l.rxcuis)]),
+  ];
 
   const single = apps.filter((a) => a.ingredients.some((i) => i.length === 1));
   const marketed = (type: string) => single.filter((a) => a.type === type && a.activeProducts > 0);
   const availability: Availability | null = single.length
     ? {
         genericMakers: new Set(marketed("ANDA").map((a) => a.sponsor)).size,
-        // 351(k) biosimilars carry BLA numbers from 761000 up.
-        biosimilars: [...new Set(marketed("BLA").filter((a) => Number(a.number.replace(/\D/g, "")) >= 761000).flatMap((a) => a.brandNames))].sort(),
+        // Biosimilars' ingredient names carry a four-letter suffix ("infliximab-dyyb").
+        biosimilars: [...new Set(marketed("BLA").filter((a) => a.ingredients.some((i) => i.length === 1 && /-[a-z]{4}$/.test(i[0]))).flatMap((a) => a.brandNames))].sort(),
         brandHolders: [...new Set(single.filter((a) => a.type !== "ANDA").map((a) => a.sponsor))],
       }
     : null;

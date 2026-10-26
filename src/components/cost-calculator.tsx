@@ -46,7 +46,9 @@ export function CostCalculator({
   if (!p) return null;
 
   const countable = p.unit.toUpperCase() === "EA";
-  const quantity = countable ? perDay * days : days;
+  // Pens, syringes, vials and kits are used weekly or less, so they are counted per fill, not per day.
+  const perFillMode = countable && !/\b(tab|tablet|tabs|cap|capsule|caps|lozenge|troche|packet|patch)\b/i.test(p.label);
+  const quantity = countable ? (perFillMode ? perDay * (days / 30) : perDay * days) : days;
   const fillsPerYear = Math.round(365 / days);
   const pharmacy = p.perUnit * quantity;
   const medicareUnit = p.brand ? medicarePerUnit.brand : medicarePerUnit.generic;
@@ -74,7 +76,7 @@ export function CostCalculator({
         </label>
         {countable && (
           <label className="block" htmlFor={`${id}-per-day`}>
-            <span className="mb-1 block font-medium">Units per day</span>
+            <span className="mb-1 block font-medium">{perFillMode ? "Pens, syringes or packs per month" : "Units per day"}</span>
             <input
               id={`${id}-per-day`}
               type="number"
@@ -113,7 +115,7 @@ export function CostCalculator({
             <InfoTip term="nadac" label="NADAC" />
           </dt>
           <dd className="text-2xl font-semibold tabular-nums">{money(pharmacy)}</dd>
-          <dd className="text-sm text-muted">{countable ? `${quantity} units` : ""} at {money(p.perUnit)} each (NADAC)</dd>
+          <dd className="text-sm text-muted">{countable ? `${quantity} ${perFillMode ? "pens, syringes or packs" : "units"}` : ""} at {money(p.perUnit)} each (NADAC)</dd>
         </div>
         <div className="rounded-md bg-cream/70 p-3">
           <dt className="text-sm font-medium">
@@ -131,7 +133,9 @@ export function CostCalculator({
           {planCost && (planCost.copay !== undefined || planCost.coinsurance !== undefined) && (
             <dd className="text-sm font-medium">
               Most Medicare plans charge{" "}
-              {planCost.copay !== undefined ? `${whole(planCost.copay)} a month` : `${Math.round((planCost.coinsurance ?? 0) * 100)}% (about ${money(gross * (planCost.coinsurance ?? 0))})`}
+              {planCost.copay !== undefined
+                ? `${whole(planCost.copay)} a month`
+                : `${Math.round((planCost.coinsurance ?? 0) * 100)}% (about ${money(Math.min(gross * (planCost.coinsurance ?? 0), PART_D_2026.outOfPocketCap))}${gross * (planCost.coinsurance ?? 0) * fillsPerYear > PART_D_2026.outOfPocketCap ? ` a fill until the ${whole(PART_D_2026.outOfPocketCap)} yearly cap` : ""})`}
               {days !== 30 ? " for a one-month supply" : ""}.
             </dd>
           )}

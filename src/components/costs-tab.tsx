@@ -11,6 +11,7 @@ import type { CostDetails, CoverageStats } from "@/lib/cost-details";
 import { dollars, formatProduct, money, unitLabel, type NadacPrice } from "@/lib/costs";
 import type { PartDRow } from "@/lib/cost-data";
 import { loadCostDetails } from "@/lib/loaders";
+import { PART_D_2026 } from "@/lib/medicare-benefit";
 import { titleCase } from "@/lib/text";
 
 function Updated({ children }: { children: React.ReactNode }) {
@@ -44,7 +45,8 @@ function typicalCost(s: CoverageStats, perFill?: number): string {
   if (s.covered === 0) return "–";
   if (s.copayPlans >= s.coinsurancePlans && s.medianCopay !== undefined) return `${dollars(s.medianCopay)} copay`;
   if (s.medianCoinsurance !== undefined) {
-    const est = perFill ? ` (about ${money(perFill * s.medianCoinsurance)})` : "";
+    const share = perFill ? perFill * s.medianCoinsurance : 0;
+    const est = share ? ` (about ${money(Math.min(share, PART_D_2026.outOfPocketCap))}${share * 12 > PART_D_2026.outOfPocketCap ? `, up to the ${dollars(PART_D_2026.outOfPocketCap)} yearly cap` : ""})` : "";
     return `${Math.round(s.medianCoinsurance * 100)}% coinsurance${est}`;
   }
   return s.medianCopay !== undefined ? `${dollars(s.medianCopay)} copay` : "–";
@@ -114,11 +116,14 @@ export async function CostsTab({ drug }: { drug: string }) {
 
   const gen = genericRow(c.partD);
   const brandRows = c.partD.filter((r) => r !== gen);
-  const topD = c.partD[0];
   const topB = c.partBSpending[0];
+  // Clinic-given drugs (infliximab) reach far more patients under Part B than Part D.
+  const topD = topB && topB.beneficiaries > (c.partD[0]?.beneficiaries ?? 0) ? undefined : c.partD[0];
   const insulin = /^insulin\b/i.test(c.drug);
   const products: CalculatorProduct[] = allPrices.slice(0, 30).map((p) => ({ label: formatProduct(p.description), perUnit: p.perUnit, unit: p.unit, brand: p.brand }));
   const o = c.coverage?.overall;
+  // Approved generics can be held back by patents (apixaban); count them as sold only with pharmacy or Medicare data.
+  const genericSold = c.generic.length > 0 || Boolean(gen);
   const perFill = gen?.avgPerClaim ?? topD?.avgPerClaim;
 
   return (
@@ -149,7 +154,7 @@ export async function CostsTab({ drug }: { drug: string }) {
           label="Medicare cost per patient"
           tip={<InfoTip term={topD ? "partD" : "partB"} label={topD ? "Medicare Part D" : "Medicare Part B"} />}
           value={topD ? `${money(topD.avgPerBeneficiary)} / year` : topB ? `${money(topB.avgPerBeneficiary)} / year` : "–"}
-          note={topD ? `${topD.brand}, Part D ${c.partDYear}, plan and patient together` : topB ? `Part B ${c.partBSpendingYear}, given in a clinic` : "Not in Medicare spending data"}
+          note={topD ? `${topD.brand}, Part D ${c.partDYear}, plan and patient together` : topB ? `${topB.brand || topB.generic}, Part B ${c.partBSpendingYear}, given in a clinic` : "Not in Medicare spending data"}
         />
         <Tile
           label="Medicare plan coverage"
@@ -164,9 +169,14 @@ export async function CostsTab({ drug }: { drug: string }) {
 
       {(c.availability || c.negotiated.current || c.negotiated.next) && (
         <div className="flex flex-wrap gap-2">
-          {c.availability && c.availability.genericMakers > 0 && (
+          {c.availability && c.availability.genericMakers > 0 && genericSold && (
             <Badge tone="approved">
               <BadgeCheck aria-hidden className="size-3.5" /> Generic available from {c.availability.genericMakers} maker{c.availability.genericMakers === 1 ? "" : "s"}
+            </Badge>
+          )}
+          {c.availability && c.availability.genericMakers > 0 && !genericSold && (
+            <Badge tone="neutral" title="FDA-approved generics with no pharmacy or Medicare sales recorded yet, often because of patents">
+              Generic approved, not yet sold
             </Badge>
           )}
           {c.availability && c.availability.genericMakers === 0 && c.availability.biosimilars.length === 0 && <Badge tone="neutral">No generic marketed</Badge>}
@@ -473,7 +483,7 @@ export async function CostsTab({ drug }: { drug: string }) {
           </span>
         </SectionHeading>
         <ul className="space-y-2">
-          {c.availability && c.availability.genericMakers > 0 && c.brandRange && c.genericRange && (
+          {genericSold && c.brandRange && c.genericRange && (
             <li className="flex gap-2">
               <Info aria-hidden className="mt-1 size-4 shrink-0 text-muted" />
               <span>A generic is available and costs pharmacies far less than the brand ({money(c.genericRange.min)} vs {money(c.brandRange.min)} per unit).</span>
