@@ -34,8 +34,15 @@ export function parseMedGuide(text: string | undefined): MedGuide {
   if (!text) return {};
   const found: { key: GuideKey; start: number; end: number }[] = [];
   for (const [key, re] of HEADINGS) {
-    const m = re.exec(text);
-    if (m && !found.some((f) => m.index < f.end && m.index + m[0].length > f.start)) found.push({ key, start: m.index, end: m.index + m[0].length });
+    // Guides cite their own headings ('See "What is the most important information…"'); a quoted match is a reference, not the heading.
+    const all = new RegExp(re.source, "gi");
+    for (const m of text.matchAll(all)) {
+      const before = text.slice(Math.max(0, (m.index ?? 0) - 3), m.index);
+      if (/["“'‘]\s*$/.test(before)) continue;
+      const start = m.index ?? 0;
+      if (!found.some((f) => start < f.end && start + m[0].length > f.start)) found.push({ key, start, end: start + m[0].length });
+      break;
+    }
   }
   found.sort((a, b) => a.start - b.start);
   const out: MedGuide = {};
@@ -51,14 +58,24 @@ export function items(text: string | undefined, max = 10): string[] {
   if (!text) return [];
   const parts = text.includes("•") ? text.split("•").slice(1) : text.match(/[^.!?]+[.!?]+/g) ?? [text];
   return parts
-    .map((s) => s.replace(/\s+/g, " ").trim())
-    .filter((s) => s.length > 2 && s.length < 400)
+    .map((s) =>
+      s
+        // Drop cross-references to other parts of the guide.
+        .replace(/See\s+["“][^"”]*["”]?\s*(for [^.]*\.)?/gi, "")
+        .replace(/\s+/g, " ")
+        .replace(/^[\s"”'’.,;:)•-]+/, "")
+        .trim(),
+    )
+    .filter((s) => s.length > 3 && s.length < 400 && /[a-z]/i.test(s))
     .slice(0, max);
 }
 
 export function sentencesMatching(text: string | undefined, re: RegExp, max = 3): string[] {
   if (!text) return [];
-  return (text.match(/[^.!?]+[.!?]+/g) ?? []).map((s) => s.trim()).filter((s) => re.test(s)).slice(0, max);
+  return (text.match(/[^.!?]+[.!?]+/g) ?? [])
+    .map((s) => s.replace(/^[\s•"”-]+/, "").trim())
+    .filter((s) => re.test(s))
+    .slice(0, max);
 }
 
 const EMERGENCY = /\b(emergency|911|right away|immediately|trouble breathing|difficulty breathing|swelling of (?:your )?(?:face|lips|tongue|throat)|chest pain|faint|seizure|anaphyla|severe allergic|suicid)/i;

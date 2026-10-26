@@ -101,6 +101,7 @@ async function DrugContent({ params, searchParams }: Props) {
       <div id="drug-tabs" className="scroll-mt-4">
         <DrugTabs
           initial={tab}
+          lazy={["specialists"]}
           panels={{
             evidence: (
               <Suspense fallback={<LoadingBlock label="Loading studies from PubMed and ClinicalTrials.gov…" lines={6} />}>
@@ -122,11 +123,15 @@ async function DrugContent({ params, searchParams }: Props) {
                 <CostsTab drug={drug} />
               </Suspense>
             ),
-            specialists: (
-              <Suspense fallback={<LoadingBlock label="Finding clinicians who prescribe this drug…" lines={6} />}>
-                <SpecialistsTab {...props} filters={cleanFilters(sp)} />
-              </Suspense>
-            ),
+            // Specialists queries Medicare's rate-limited data service, so it runs only when its tab is open.
+            specialists:
+              tab === "specialists" ? (
+                <Suspense fallback={<LoadingBlock label="Finding clinicians who prescribe this drug…" lines={6} />}>
+                  <SpecialistsTab {...props} filters={cleanFilters(sp)} />
+                </Suspense>
+              ) : (
+                <LoadingBlock label="Finding clinicians who prescribe this drug…" lines={6} />
+              ),
             patient: (
               <Suspense fallback={<LoadingBlock label="Loading label and MedlinePlus information…" lines={6} />}>
                 <PatientTab {...props} />

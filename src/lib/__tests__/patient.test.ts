@@ -91,3 +91,14 @@ it("strips label cross-references for reading on screen", async () => {
   const { tidyLabel } = await import("../../components/patient-tab");
   expect(tidyLabel("Take once daily ( 2.1 ). Monitor kidney function [see Warnings and Precautions ( 5.1 )].")).toBe("Take once daily. Monitor kidney function.");
 });
+
+it("ignores quoted references to guide headings", async () => {
+  const { parseMedGuide, items } = await import("../medguide");
+  const g = parseMedGuide(
+    'What is the most important information I should know about X? X may cause tumors. See "What are the possible side effects of X?" for more. ' +
+      "How should I take X? • Take X once a day. What are the possible side effects of X? X may cause serious side effects, including: " +
+      '• See "What is the most important information I should know about X?" • inflammation of your pancreas.',
+  );
+  expect(items(g.howToTake)).toEqual(["Take X once a day."]);
+  expect(items(g.sideEffects)).toContain("inflammation of your pancreas.");
+});
