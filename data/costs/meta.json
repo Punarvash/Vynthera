@@ -54,5 +54,10 @@
     "title": "Medicare Physician & Other Practitioners - by Provider and Service : 2024-12-01",
     "apiUrl": "https://data.cms.gov/data-api/v1/dataset/92396110-2aed-4d63-a6a2-5d6207d46a29/data",
     "year": 2024
+  },
+  "topPrescribers": {
+    "url": "https://data.cms.gov/sites/default/files/2026-05/0ae165f4-eb44-495d-8cac-67f4571b6b83/MUP_DPR_RY26_P04_V10_DY24_NPIBN.csv",
+    "year": 2024,
+    "drugs": 1823
   }
 }
