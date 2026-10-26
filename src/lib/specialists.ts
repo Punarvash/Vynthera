@@ -240,8 +240,11 @@ async function livePrescribers(ctx: SpecialistContext, params: Parameters<typeof
   return { rows, failed };
 }
 
-/** Dentists prescribe many antibiotics but are not who a physician refers to for a second opinion. */
-const NOT_FOR_REFERRAL = /^(dentist|oral surgery|student in an organized|clinic\/center|pharmacist)/i;
+/**
+ * Prescriber types that are not who a physician refers to for a second opinion on a drug: dentists (CMS files many
+ * under "Maxillofacial Surgery") and surgeons who give antibiotics around procedures, among others.
+ */
+export const NOT_FOR_REFERRAL = /^(dentist|dental|oral|maxillofacial|orthopedic surgery|micrographic dermatologic surgery|student in an organized|clinic\/center|pharmacist)/i;
 
 /** Clinicians of the matching specialties who prescribe the condition's drugs most. */
 export async function conditionExperts(ctx: SpecialistContext): Promise<SectionResult<Specialist>> {
@@ -274,7 +277,11 @@ export async function drugExperts(ctx: SpecialistContext): Promise<SectionResult
   const { state, city, specialty } = ctx.filters;
   if (!state) {
     const index = await loadTopPrescribers();
-    const top = index ? fromTopIndex(index, ctx.drugGenerics, specialty ? [specialty] : undefined).slice(0, MAX_SHOWN) : [];
+    const top = index
+      ? fromTopIndex(index, ctx.drugGenerics, specialty ? [specialty] : undefined)
+          .filter((p) => specialty || !NOT_FOR_REFERRAL.test(p.type))
+          .slice(0, MAX_SHOWN)
+      : [];
     if (top.length) return { items: (await withProviders(top, problems)).map(({ row, provider }) => ({ experience: row, provider })), problems };
   }
   if (!ctx.apiUrl) return { items: [], problems };

@@ -163,6 +163,9 @@ export async function importVa(meta: CostMeta): Promise<void> {
 }
 
 /** Prescriber types the Specialists tab filters by (CMS spelling); keep in sync with SPECIALTIES in src/lib/specialists.ts. */
+/** Keep in sync with NOT_FOR_REFERRAL in src/lib/specialists.ts (left out of each drug's overall list). */
+const NOT_FOR_REFERRAL = /^(dentist|dental|oral|maxillofacial|orthopedic surgery|micrographic dermatologic surgery|student in an organized|clinic\/center|pharmacist)/i;
+
 const SPECIALIST_TYPES = [
   "Allergy/ Immunology", "Cardiology", "Dermatology", "Endocrinology", "Family Practice", "Gastroenterology", "Geriatric Medicine",
   "Hematology-Oncology", "Infectious Disease", "Internal Medicine", "Medical Oncology", "Nephrology", "Neurology",
@@ -178,7 +181,7 @@ export async function importTopPrescribers(meta: CostMeta, cms: Catalog): Promis
   const d = pickDataset(cms.dataset ?? [], /^Medicare Part D Prescribers - by Provider and Drug\b/i);
   const csv = d && pickCsv(d);
   if (!csv?.downloadURL) throw new Error("Medicare Part D Prescribers by Provider and Drug not found in the CMS catalog");
-  const top = new TopPrescribers(new Set(SPECIALIST_TYPES), /^(dentist|oral surgery|student in an organized|clinic\/center|pharmacist)/i);
+  const top = new TopPrescribers(new Set(SPECIALIST_TYPES), NOT_FOR_REFERRAL, 25);
   let first = true;
   let n = 0;
   for await (const f of csvRecords(csv.downloadURL)) {

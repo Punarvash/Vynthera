@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aggregatePrescribers } from "../sources/prescribers";
 import { toProvider } from "../sources/nppes";
-import { cleanFilters, fromTopIndex, nppesTaxonomy } from "../specialists";
+import { cleanFilters, fromTopIndex, NOT_FOR_REFERRAL, nppesTaxonomy } from "../specialists";
 import type { TopPrescribersFile } from "../cost-data";
 import { TopPrescribers } from "../../../scripts/costs/parse-extra";
 
@@ -108,5 +108,12 @@ describe("nationwide top-prescriber index", () => {
     expect(nppesTaxonomy("Family Practice")).toBe("Family Medicine");
     expect(nppesTaxonomy("Pediatric Medicine")).toBe("Pediatrics");
     expect(nppesTaxonomy("Cardiology")).toBe("Cardiology");
+  });
+});
+
+describe("referral filter", () => {
+  it("leaves out dentists and surgeons who prescribe around procedures", () => {
+    for (const t of ["Dentist", "Maxillofacial Surgery", "Oral & Maxillofacial Surgery", "Orthopedic Surgery", "Micrographic Dermatologic Surgery"]) expect(NOT_FOR_REFERRAL.test(t)).toBe(true);
+    for (const t of ["Family Practice", "Infectious Disease", "Otolaryngology", "Nurse Practitioner"]) expect(NOT_FOR_REFERRAL.test(t)).toBe(false);
   });
 });
