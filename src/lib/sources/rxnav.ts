@@ -16,7 +16,7 @@ interface Related {
 export async function productRxcuis(ingredient: string): Promise<string[]> {
   "use cache";
   cacheLife("days");
-  const found = await getJson<{ idGroup?: { rxnormId?: string[] } }>(SOURCE, `${BASE}/rxcui.json?name=${encodeURIComponent(ingredient)}&search=2`);
+  const found = await getJson<{ idGroup?: { rxnormId?: string[] } }>(SOURCE, `${BASE}/rxcui.json?name=${encodeURIComponent(ingredient)}&search=2`, { notFoundAs: {} });
   const id = found.idGroup?.rxnormId?.[0];
   if (!id) return [];
   const related = await getJson<Related>(SOURCE, `${BASE}/rxcui/${id}/related.json?tty=SCD+SBD+GPCK+BPCK`);

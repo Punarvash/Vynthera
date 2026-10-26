@@ -48,3 +48,16 @@ export function estimatePartD(perFill: number, fillsPerYear: number, options: { 
     hitsCap: patientShare(yearlyGross) >= b.outOfPocketCap,
   };
 }
+
+function usd(n: number): string {
+  if (Number.isInteger(n)) return `$${n.toLocaleString("en-US")}`;
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** "(about $69 a fill)", or when the yearly out-of-pocket cap is reached, for a patient's share per fill. */
+export function capNote(share: number, fillsPerYear: number): string {
+  const cap = PART_D_2026.outOfPocketCap;
+  if (share >= cap) return `(the ${usd(cap)} yearly cap is reached with the first fill)`;
+  if (share * fillsPerYear > cap) return `(about ${usd(Math.round(share * 100) / 100)} a fill until the ${usd(cap)} yearly cap)`;
+  return `(about ${usd(Math.round(share * 100) / 100)} a fill)`;
+}

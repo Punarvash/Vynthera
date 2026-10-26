@@ -11,7 +11,7 @@ import type { CostDetails, CoverageStats } from "@/lib/cost-details";
 import { dollars, formatProduct, money, unitLabel, type NadacPrice } from "@/lib/costs";
 import type { PartDRow } from "@/lib/cost-data";
 import { loadCostDetails } from "@/lib/loaders";
-import { PART_D_2026 } from "@/lib/medicare-benefit";
+import { capNote } from "@/lib/medicare-benefit";
 import { titleCase } from "@/lib/text";
 
 function Updated({ children }: { children: React.ReactNode }) {
@@ -45,8 +45,7 @@ function typicalCost(s: CoverageStats, perFill?: number): string {
   if (s.covered === 0) return "–";
   if (s.copayPlans >= s.coinsurancePlans && s.medianCopay !== undefined) return `${dollars(s.medianCopay)} copay`;
   if (s.medianCoinsurance !== undefined) {
-    const share = perFill ? perFill * s.medianCoinsurance : 0;
-    const est = share ? ` (about ${money(Math.min(share, PART_D_2026.outOfPocketCap))}${share * 12 > PART_D_2026.outOfPocketCap ? `, up to the ${dollars(PART_D_2026.outOfPocketCap)} yearly cap` : ""})` : "";
+    const est = perFill ? ` ${capNote(perFill * s.medianCoinsurance, 12)}` : "";
     return `${Math.round(s.medianCoinsurance * 100)}% coinsurance${est}`;
   }
   return s.medianCopay !== undefined ? `${dollars(s.medianCopay)} copay` : "–";
@@ -120,7 +119,11 @@ export async function CostsTab({ drug }: { drug: string }) {
   // Clinic-given drugs (infliximab) reach far more patients under Part B than Part D.
   const topD = topB && topB.beneficiaries > (c.partD[0]?.beneficiaries ?? 0) ? undefined : c.partD[0];
   const insulin = /^insulin\b/i.test(c.drug);
-  const products: CalculatorProduct[] = allPrices.slice(0, 30).map((p) => ({ label: formatProduct(p.description), perUnit: p.perUnit, unit: p.unit, brand: p.brand }));
+  // Everyday strengths first; starter and titration packs last.
+  const products: CalculatorProduct[] = [...allPrices]
+    .sort((a, b) => Number(/starter|titration|dose pack/i.test(a.description)) - Number(/starter|titration|dose pack/i.test(b.description)))
+    .slice(0, 30)
+    .map((p) => ({ label: formatProduct(p.description), perUnit: p.perUnit, unit: p.unit, brand: p.brand }));
   const o = c.coverage?.overall;
   // Approved generics can be held back by patents (apixaban); count them as sold only with pharmacy or Medicare data.
   const genericSold = c.generic.length > 0 || Boolean(gen);

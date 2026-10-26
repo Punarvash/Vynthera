@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { InfoTip } from "./info-tip";
-import { estimatePartD, PART_D_2026 } from "@/lib/medicare-benefit";
+import { capNote, estimatePartD, PART_D_2026 } from "@/lib/medicare-benefit";
 
 export interface CalculatorProduct {
   label: string;
@@ -47,13 +47,15 @@ export function CostCalculator({
 
   const countable = p.unit.toUpperCase() === "EA";
   // Pens, syringes, vials and kits are used weekly or less, so they are counted per fill, not per day.
-  const perFillMode = countable && !/\b(tab|tablet|tabs|cap|capsule|caps|lozenge|troche|packet|patch)\b/i.test(p.label);
+  const perFillMode = countable && !/\b(tab|tablet|tabs|cap|capsule|caps|lozenge|troche|packet|patch|pack)\b/i.test(p.label);
   const quantity = countable ? (perFillMode ? perDay * (days / 30) : perDay * days) : days;
   const fillsPerYear = Math.round(365 / days);
   const pharmacy = p.perUnit * quantity;
   const medicareUnit = p.brand ? medicarePerUnit.brand : medicarePerUnit.generic;
-  // Medicare's average per unit already includes the pharmacy's fee; fall back to the NADAC cost.
-  const gross = medicareUnit !== undefined && countable ? medicareUnit * quantity : pharmacy;
+  // Medicare's average per unit already includes the pharmacy's fee. It is averaged over all forms of a
+  // brand (pens and tablets), so use it only when it is in line with this product's pharmacy cost.
+  const medicareFits = medicareUnit !== undefined && countable && medicareUnit >= p.perUnit * 0.5 && medicareUnit <= p.perUnit * 4;
+  const gross = medicareFits ? (medicareUnit as number) * quantity : pharmacy;
   const est = estimatePartD(gross, fillsPerYear, { insulin });
 
   return (
@@ -124,7 +126,7 @@ export function CostCalculator({
           </dt>
           <dd className="text-2xl font-semibold tabular-nums">{money(gross)}</dd>
           <dd className="text-sm text-muted">
-            {medicareUnit !== undefined && countable ? "Plan and patient together, at Medicare's average unit cost" : "Pharmacy cost used; Medicare unit cost not available"}
+            {medicareFits ? "Plan and patient together, at Medicare's average unit cost" : "Pharmacy cost used; no matching Medicare unit cost"}
           </dd>
         </div>
         <div className="rounded-md bg-cream/70 p-3">
@@ -135,7 +137,7 @@ export function CostCalculator({
               Most Medicare plans charge{" "}
               {planCost.copay !== undefined
                 ? `${whole(planCost.copay)} a month`
-                : `${Math.round((planCost.coinsurance ?? 0) * 100)}% (about ${money(Math.min(gross * (planCost.coinsurance ?? 0), PART_D_2026.outOfPocketCap))}${gross * (planCost.coinsurance ?? 0) * fillsPerYear > PART_D_2026.outOfPocketCap ? ` a fill until the ${whole(PART_D_2026.outOfPocketCap)} yearly cap` : ""})`}
+                : `${Math.round((planCost.coinsurance ?? 0) * 100)}% ${capNote(gross * (planCost.coinsurance ?? 0), fillsPerYear)}`}
               {days !== 30 ? " for a one-month supply" : ""}.
             </dd>
           )}
