@@ -24,10 +24,14 @@ export const loadPatientInfo = cache(async (drug: string, condition: string | un
   const evidence = await loadEvidence(drug, condition);
   const problems: SourceProblem[] = [];
   let medline: MedlinePlusEntry[] = [];
+  let medlineEs: MedlinePlusEntry[] = [];
   try {
-    medline = evidence.label ? await medlinePlusForRxcuis(evidence.label.rxcuis) : [];
+    [medline, medlineEs] = evidence.label
+      ? await Promise.all([medlinePlusForRxcuis(evidence.label.rxcuis), medlinePlusForRxcuis(evidence.label.rxcuis, "es").catch(() => [])])
+      : [[], []];
   } catch (err) {
     problems.push({ source: "MedlinePlus", message: describeError(err) });
   }
-  return { evidence, medline, plain: await plainLanguage(evidence, medline), problems };
+  const costs = await loadCosts(drug).catch(() => null);
+  return { evidence, medline, medlineEs, costs, plain: await plainLanguage(evidence, medline), problems };
 });

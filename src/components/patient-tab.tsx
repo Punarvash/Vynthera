@@ -1,10 +1,30 @@
-import { AlertTriangle, CheckCircle2, MinusCircle, ShieldAlert } from "lucide-react";
+import {
+  AlertTriangle,
+  Ban,
+  Baby,
+  Clock,
+  DollarSign,
+  ExternalLink,
+  HeartPulse,
+  HelpCircle,
+  Info,
+  ListChecks,
+  Package,
+  Phone,
+  Pill,
+  ShieldAlert,
+  Siren,
+  Sparkles,
+  ThumbsUp,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { AiBadge, GradePill, LabelStatusBadge } from "./badges";
 import { PatientViews } from "./patient-views";
 import { SourceProblems } from "./source-problems";
 import { Card, SectionHeading, SourceLink } from "./ui";
+import { money } from "@/lib/costs";
 import { loadPatientInfo } from "@/lib/loaders";
-import { truncate } from "@/lib/text";
+import { firstSentences, truncate } from "@/lib/text";
 import type { LabelTable } from "@/lib/types";
 
 /** A long label section: the opening shown, the rest one click away. */
@@ -52,11 +72,17 @@ function LabelTableView({ table }: { table: LabelTable }) {
   );
 }
 
-function plural(n: number, one: string, many = `${one}s`): string {
-  return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+/** One collapsible label section in the physician view, linked from the contents list. */
+function LabelSection({ id, title, open, tone, children }: { id: string; title: string; open?: boolean; tone?: "danger"; children: ReactNode }) {
+  return (
+    <details id={id} open={open} className={`scroll-mt-24 rounded-lg border p-4 ${tone === "danger" ? "border-[#efb1aa] bg-[#fdf3f2]" : "border-line bg-surface"}`}>
+      <summary className={`cursor-pointer text-lg font-semibold ${tone === "danger" ? "text-[#8a1c12]" : ""}`}>{title}</summary>
+      <div className="mt-3 space-y-3">{children}</div>
+    </details>
+  );
 }
 
-function List({ items, icon: Icon, tone }: { items: string[]; icon: typeof CheckCircle2; tone: string }) {
+function List({ items, icon: Icon, tone }: { items: string[]; icon: typeof Info; tone: string }) {
   return (
     <ul className="space-y-2">
       {items.map((t) => (
@@ -69,178 +95,386 @@ function List({ items, icon: Icon, tone }: { items: string[]; icon: typeof Check
   );
 }
 
+/** A numbered section of the patient handout with an icon, so it is easy to scan and to print. */
+function Step({ n, icon: Icon, title, tone = "text-gold-text", children }: { n: number; icon: typeof Info; title: string; tone?: string; children: ReactNode }) {
+  return (
+    <section className="break-inside-avoid rounded-lg border border-line bg-surface p-5">
+      <h4 className="mb-3 flex items-center gap-3 text-xl font-semibold">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-cream text-base text-navy">{n}</span>
+        <Icon aria-hidden className={`size-6 shrink-0 ${tone}`} />
+        {title}
+      </h4>
+      <div className="space-y-2 text-[1.05rem] leading-relaxed">{children}</div>
+    </section>
+  );
+}
+
+function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+}
+
 export async function PatientTab({ drug, condition }: { drug: string; condition?: string }) {
-  const { evidence: e, medline, plain, problems } = await loadPatientInfo(drug, condition);
+  const { evidence: e, medline, medlineEs, costs, plain, problems } = await loadPatientInfo(drug, condition);
   const l = e.label;
   const drugName = e.drug.charAt(0).toUpperCase() + e.drug.slice(1);
   const count = (...designs: string[]) => e.studies.filter((a) => designs.includes(a.design)).length;
   const dailyMed = l && <SourceLink href={l.dailyMedUrl}>FDA label on DailyMed</SourceLink>;
+  const drugClass = l?.pharmClassEpc[0]?.replace(/\s*\[EPC\]$/, "");
+
+  const sections: { id: string; title: string; show: boolean }[] = [
+    { id: "pi-boxed", title: "Boxed warning", show: Boolean(l?.boxedWarning) },
+    { id: "pi-uses", title: "Uses", show: Boolean(l?.indications) },
+    { id: "pi-dosing", title: "Dosing", show: Boolean(l?.dosage) },
+    { id: "pi-populations", title: "Specific populations", show: Boolean(l?.specificPopulations || l?.pregnancy || l?.lactation || l?.pediatricUse || l?.geriatricUse) },
+    { id: "pi-contra", title: "Contraindications", show: Boolean(l?.contraindications) },
+    { id: "pi-warnings", title: "Warnings", show: Boolean(l?.warnings) },
+    { id: "pi-adverse", title: "Side effects", show: Boolean(l?.adverseTable || l?.adverseReactions) },
+    { id: "pi-interactions", title: "Drug interactions", show: Boolean(l?.interactions) },
+    { id: "pi-overdose", title: "Overdose", show: Boolean(l?.overdosage) },
+    { id: "pi-pharm", title: "Mechanism and pharmacokinetics", show: Boolean(l?.mechanism || l?.pharmacokinetics) },
+    { id: "pi-storage", title: "How supplied and storage", show: Boolean(l?.howSupplied || l?.storage) },
+    { id: "pi-tox", title: "Animal toxicology", show: Boolean(l?.toxicology) },
+    { id: "pi-evidence", title: "Evidence", show: true },
+  ];
 
   const physician = (
-    <div className="space-y-5">
-      {!l && (
+    <div className="space-y-4">
+      {!l ? (
         <Card>
           <p>No FDA label was found for {drugName}, so dosage, side effects and toxicology are not available.</p>
         </Card>
-      )}
-      {l?.boxedWarning && (
-        <Card className="border-[#efb1aa] bg-[#fdf3f2]">
-          <SectionHeading>
-            <span className="flex items-center gap-2 text-[#8a1c12]">
-              <ShieldAlert aria-hidden className="size-5" /> Boxed warning
-            </span>
-          </SectionHeading>
-          <LongText text={l.boxedWarning} />
-        </Card>
-      )}
-      {l?.mechanism && (
+      ) : (
         <Card>
-          <SectionHeading>Mechanism of action</SectionHeading>
-          <LongText text={l.mechanism} />
-          <p className="mt-2 text-sm text-muted">Source: {dailyMed}</p>
+          <SectionHeading>At a glance</SectionHeading>
+          <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+            {drugClass && (
+              <div>
+                <dt className="text-sm font-semibold uppercase tracking-wide text-gold-text">Class</dt>
+                <dd>{drugClass}</dd>
+              </div>
+            )}
+            {l.routes.length > 0 && (
+              <div>
+                <dt className="text-sm font-semibold uppercase tracking-wide text-gold-text">Route</dt>
+                <dd>{l.routes.map((r) => r.toLowerCase()).join(", ")}</dd>
+              </div>
+            )}
+            {l.mechanism && (
+              <div className="sm:col-span-2">
+                <dt className="text-sm font-semibold uppercase tracking-wide text-gold-text">Mechanism</dt>
+                <dd>{truncate(firstSentences(l.mechanism, 1), 260)}</dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-sm font-semibold uppercase tracking-wide text-gold-text">Boxed warning</dt>
+              <dd className={l.boxedWarning ? "font-semibold text-[#8a1c12]" : ""}>{l.boxedWarning ? "Yes, see below" : "None"}</dd>
+            </div>
+            {l.controlledSubstance && (
+              <div>
+                <dt className="text-sm font-semibold uppercase tracking-wide text-gold-text">Controlled substance</dt>
+                <dd>Schedule {l.controlledSubstance.replace(/^C/, "")}</dd>
+              </div>
+            )}
+            {costs && (costs.genericRange || costs.brandRange) && (
+              <div>
+                <dt className="text-sm font-semibold uppercase tracking-wide text-gold-text">Generic</dt>
+                <dd>{costs.genericRange ? `Available, from ${money(costs.genericRange.min)} per unit (NADAC)` : "Not available in pharmacies"}</dd>
+              </div>
+            )}
+            {l.pregnancy && (
+              <div className="sm:col-span-2">
+                <dt className="text-sm font-semibold uppercase tracking-wide text-gold-text">Pregnancy</dt>
+                <dd>{truncate(firstSentences(l.pregnancy, 1), 260)}</dd>
+              </div>
+            )}
+          </dl>
+          <p className="mt-3 text-sm text-muted">
+            Label version {l.effectiveDate ?? "date not listed"} · {dailyMed}
+          </p>
+          <nav aria-label="Label sections" className="mt-3 flex flex-wrap gap-2">
+            {sections
+              .filter((s) => s.show)
+              .map((s) => (
+                <a key={s.id} href={`#${s.id}`} className="rounded-full border border-line px-3 py-1 text-sm text-navy hover:border-gold">
+                  {s.title}
+                </a>
+              ))}
+          </nav>
         </Card>
+      )}
+
+      {l?.boxedWarning && (
+        <LabelSection id="pi-boxed" title="Boxed warning" open tone="danger">
+          <p className="flex gap-2">
+            <ShieldAlert aria-hidden className="mt-1 size-5 shrink-0 text-[#8a1c12]" />
+            <span className="whitespace-pre-line">{l.boxedWarning}</span>
+          </p>
+        </LabelSection>
+      )}
+      {l?.indications && (
+        <LabelSection id="pi-uses" title="Uses (FDA-approved indications)" open>
+          <LongText text={l.indications} preview={700} />
+          {condition && (
+            <p>
+              For {condition}: <LabelStatusBadge status={e.labelStatus} />
+            </p>
+          )}
+        </LabelSection>
       )}
       {l?.dosage && (
-        <Card>
-          <SectionHeading>Dosage and administration</SectionHeading>
+        <LabelSection id="pi-dosing" title="Dosing and administration" open>
           <LongText text={l.dosage} />
-          <p className="mt-2 text-sm text-muted">Source: {dailyMed}</p>
-        </Card>
+        </LabelSection>
+      )}
+      {(l?.specificPopulations || l?.pregnancy || l?.lactation || l?.pediatricUse || l?.geriatricUse) && (
+        <LabelSection id="pi-populations" title="Specific populations (pregnancy, lactation, children, older adults, kidney and liver)">
+          {l.pregnancy && (
+            <div>
+              <h5 className="font-semibold">Pregnancy</h5>
+              <LongText text={l.pregnancy} preview={400} />
+            </div>
+          )}
+          {l.lactation && (
+            <div>
+              <h5 className="font-semibold">Lactation</h5>
+              <LongText text={l.lactation} preview={300} />
+            </div>
+          )}
+          {l.pediatricUse && (
+            <div>
+              <h5 className="font-semibold">Children</h5>
+              <LongText text={l.pediatricUse} preview={300} />
+            </div>
+          )}
+          {l.geriatricUse && (
+            <div>
+              <h5 className="font-semibold">Older adults</h5>
+              <LongText text={l.geriatricUse} preview={300} />
+            </div>
+          )}
+          {l.specificPopulations && !(l.pregnancy || l.lactation) && <LongText text={l.specificPopulations} preview={500} />}
+        </LabelSection>
+      )}
+      {l?.contraindications && (
+        <LabelSection id="pi-contra" title="Contraindications" open>
+          <LongText text={l.contraindications} preview={400} />
+        </LabelSection>
+      )}
+      {l?.warnings && (
+        <LabelSection id="pi-warnings" title="Warnings and precautions">
+          <LongText text={l.warnings} />
+        </LabelSection>
       )}
       {(l?.adverseTable || l?.adverseReactions) && (
-        <Card>
-          <SectionHeading>Side effects and how often they occur</SectionHeading>
+        <LabelSection id="pi-adverse" title="Side effects and how often they occur">
           {l.adverseTable && <LabelTableView table={l.adverseTable} />}
-          {l.adverseReactions && (
-            <div className={l.adverseTable ? "mt-4" : ""}>
-              <LongText text={l.adverseReactions} preview={l.adverseTable ? 300 : 700} />
-            </div>
-          )}
-          <p className="mt-2 text-sm text-muted">Source: {dailyMed}, Adverse Reactions section.</p>
-        </Card>
+          {l.adverseReactions && <LongText text={l.adverseReactions} preview={l.adverseTable ? 300 : 700} />}
+        </LabelSection>
       )}
-      {(l?.warnings || l?.contraindications) && (
-        <Card>
-          <SectionHeading>Warnings and contraindications</SectionHeading>
-          {l.contraindications && (
-            <div className="mb-3">
-              <h4 className="font-semibold">Contraindications</h4>
-              <LongText text={l.contraindications} preview={400} />
-            </div>
-          )}
-          {l.warnings && (
+      {l?.interactions && (
+        <LabelSection id="pi-interactions" title="Drug interactions">
+          <LongText text={l.interactions} />
+        </LabelSection>
+      )}
+      {l?.overdosage && (
+        <LabelSection id="pi-overdose" title="Overdose">
+          <LongText text={l.overdosage} preview={500} />
+        </LabelSection>
+      )}
+      {(l?.mechanism || l?.pharmacokinetics) && (
+        <LabelSection id="pi-pharm" title="Mechanism of action and pharmacokinetics">
+          {l.mechanism && <LongText text={l.mechanism} preview={500} />}
+          {l.pharmacokinetics && (
             <div>
-              <h4 className="font-semibold">Warnings and precautions</h4>
-              <LongText text={l.warnings} />
+              <h5 className="font-semibold">Pharmacokinetics</h5>
+              <LongText text={l.pharmacokinetics} preview={500} />
             </div>
           )}
-        </Card>
+        </LabelSection>
       )}
-      <Card>
-        <SectionHeading>Clinical trials and meta-analyses</SectionHeading>
+      {(l?.howSupplied || l?.storage) && (
+        <LabelSection id="pi-storage" title="How supplied and storage">
+          <LongText text={[l.howSupplied, l.storage].filter(Boolean).join("\n\n")} preview={500} />
+        </LabelSection>
+      )}
+      {l?.toxicology && (
+        <LabelSection id="pi-tox" title="Animal safety and toxicity data">
+          <LongText text={l.toxicology} preview={500} />
+        </LabelSection>
+      )}
+      <LabelSection id="pi-evidence" title="Clinical trials and meta-analyses" open>
         <p>
           Among the most relevant MEDLINE studies{condition ? ` for ${condition}` : ""}:{" "}
           {plural(count("meta-analysis", "systematic-review"), "meta-analysis or systematic review", "meta-analyses or systematic reviews")},{" "}
           {plural(count("rct"), "randomized trial")} and {plural(count("clinical-trial", "observational"), "other study", "other studies")}.{" "}
           {plural(e.totalTrials, "registered trial")} on ClinicalTrials.gov.
         </p>
-        <p className="mt-2 flex flex-wrap items-center gap-2">
-          Certainty: <GradePill level={e.grade.level} label={e.grade.label} />{" "}
-          <span className="text-muted">Details and sources are on the Evidence tab.</span>
+        <p className="flex flex-wrap items-center gap-2">
+          Certainty: <GradePill level={e.grade.level} label={e.grade.label} /> <span className="text-muted">Details and sources are on the Evidence tab.</span>
         </p>
-      </Card>
-      <Card>
-        <SectionHeading>Animal safety and toxicity data</SectionHeading>
-        {l?.toxicology ? (
-          <>
-            <LongText text={l.toxicology} preview={500} />
-            <p className="mt-2 text-sm text-muted">Source: {dailyMed}, Nonclinical Toxicology section.</p>
-          </>
-        ) : (
-          <p className="text-muted">The FDA label for this drug has no nonclinical toxicology section.</p>
-        )}
-      </Card>
+      </LabelSection>
+      {l && <p className="text-sm text-muted">All label sections above are quoted from the {dailyMed}.</p>}
     </div>
   );
 
+  let n = 0;
+  const step = () => ++n;
+  const generic = costs?.genericRange;
+  const brand = costs?.brandRange;
+  const medicare = costs?.partD[0];
+
   const patient = (
-    <article className="space-y-5">
+    <article className="space-y-4">
       <Card>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-serif text-3xl font-semibold">
             {drugName}
             {condition ? ` for ${condition}` : ""}
           </h3>
-          {plain.mode === "ai" && <AiBadge>AI-written in plain language, checked against the sources below</AiBadge>}
+          {plain.mode === "ai" && <AiBadge>Written in plain language by AI, checked against the FDA sources</AiBadge>}
+          {plain.mode === "guide" && <span className="text-sm text-muted">From the FDA Medication Guide for patients</span>}
         </div>
         {condition && (
-          <p className="mb-3">
+          <p className="mt-2">
             <LabelStatusBadge status={e.labelStatus} />
           </p>
         )}
-        <h4 className="text-lg font-semibold">What it is for</h4>
-        <p>{plain.whatItIsFor}</p>
-        {plain.howItWorks && (
-          <>
-            <h4 className="mt-3 text-lg font-semibold">How it works</h4>
-            <p>{plain.howItWorks}</p>
-          </>
+        <p className="mt-3 text-[1.1rem] leading-relaxed">{plain.whatItIsFor}</p>
+        {plain.mostImportant && (
+          <p className="mt-3 flex gap-2 rounded-lg border border-[#efb1aa] bg-[#fdf3f2] p-3 text-[1.05rem]">
+            <ShieldAlert aria-hidden className="mt-1 size-5 shrink-0 text-[#8a1c12]" />
+            <span>
+              <strong>Most important: </strong>
+              {plain.mostImportant}
+            </span>
+          </p>
         )}
-        {plain.howToTake && (
-          <>
-            <h4 className="mt-3 text-lg font-semibold">How to take it</h4>
-            <p>{plain.howToTake}</p>
-          </>
-        )}
-        {plain.whatToExpect && (
-          <>
-            <h4 className="mt-3 text-lg font-semibold">What to expect</h4>
-            <p>{plain.whatToExpect}</p>
-          </>
-        )}
+        <p className="mt-3 text-sm text-muted">Use this guide to talk with your doctor or pharmacist. Follow their instructions about your dose.</p>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <SectionHeading>Benefits</SectionHeading>
-          <List items={plain.benefits} icon={CheckCircle2} tone="text-[#1d5b36]" />
-        </Card>
-        <Card>
-          <SectionHeading>Risks</SectionHeading>
-          <List items={[...plain.commonSideEffects, ...plain.seriousRisks]} icon={AlertTriangle} tone="text-[#8a1c12]" />
-        </Card>
-        <Card>
-          <SectionHeading>Drawbacks</SectionHeading>
-          <List items={plain.drawbacks} icon={MinusCircle} tone="text-[#6b4e00]" />
-        </Card>
-      </div>
-
-      {medline.length > 0 && (
-        <Card>
-          <SectionHeading>Learn more from MedlinePlus</SectionHeading>
-          {medline.slice(0, 2).map((m) => (
-            <div key={m.url} className="mb-3 last:mb-0">
-              <p className="font-semibold">
-                <SourceLink href={m.url}>{m.title}</SourceLink>
-              </p>
-              {m.summary && <p className="mt-1">{truncate(m.summary, 500)}</p>}
-            </div>
-          ))}
-          <p className="text-sm text-muted">MedlinePlus is the U.S. National Library of Medicine&apos;s health site for patients.</p>
-        </Card>
+      {plain.howItWorks && (
+        <Step n={step()} icon={Sparkles} title="How it works">
+          <p>{plain.howItWorks}</p>
+        </Step>
       )}
 
-      <Card>
-        <SectionHeading>Questions to ask your doctor</SectionHeading>
+      <Step n={step()} icon={Pill} title="How to take it">
+        <List items={plain.howToTake} icon={ListChecks} tone="text-navy" />
+        {plain.missedDose && (
+          <p className="mt-2 rounded-md bg-cream/70 p-3">
+            <strong>If you miss a dose: </strong>
+            {plain.missedDose}
+          </p>
+        )}
+      </Step>
+
+      {(plain.whatToExpect || plain.benefits.length > 0) && (
+        <Step n={step()} icon={Clock} title="What to expect">
+          {plain.whatToExpect && <p>{plain.whatToExpect}</p>}
+          <List items={plain.benefits} icon={ThumbsUp} tone="text-[#1d5b36]" />
+        </Step>
+      )}
+
+      {plain.commonSideEffects.length > 0 && (
+        <Step n={step()} icon={HeartPulse} title="Common side effects">
+          <p className="text-muted">These are common and often get better as your body gets used to the medicine. Tell your doctor if they bother you or do not go away.</p>
+          <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+            {plain.commonSideEffects.map((s) => (
+              <li key={s} className="flex gap-2">
+                <span aria-hidden className="mt-2.5 size-1.5 shrink-0 rounded-full bg-gold" />
+                {s}
+              </li>
+            ))}
+          </ul>
+        </Step>
+      )}
+
+      <Step n={step()} icon={AlertTriangle} title="When to get help" tone="text-[#8a1c12]">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border-2 border-[#8a1c12] p-3">
+            <p className="mb-2 flex items-center gap-2 font-semibold text-[#8a1c12]">
+              <Siren aria-hidden className="size-5" /> Call 911 or go to the emergency room
+            </p>
+            <List items={plain.call911} icon={AlertTriangle} tone="text-[#8a1c12]" />
+          </div>
+          <div className="rounded-lg border border-[#c58a00] p-3">
+            <p className="mb-2 flex items-center gap-2 font-semibold text-[#6b4e00]">
+              <Phone aria-hidden className="size-5" /> Call your doctor soon
+            </p>
+            {plain.callDoctor.length ? (
+              <List items={plain.callDoctor} icon={Info} tone="text-[#6b4e00]" />
+            ) : (
+              <p>Any side effect that worries you, is severe, or does not go away.</p>
+            )}
+          </div>
+        </div>
+      </Step>
+
+      {plain.whoShouldNot.length > 0 && (
+        <Step n={step()} icon={Ban} title="Who should not take it">
+          <List items={plain.whoShouldNot} icon={Ban} tone="text-[#8a1c12]" />
+        </Step>
+      )}
+
+      <Step n={step()} icon={Info} title="Medicines, foods and drinks to avoid">
+        <List items={plain.avoid} icon={Info} tone="text-navy" />
+      </Step>
+
+      {plain.pregnancy && (
+        <Step n={step()} icon={Baby} title="Pregnancy and breastfeeding">
+          <p>{plain.pregnancy}</p>
+        </Step>
+      )}
+
+      <Step n={step()} icon={Package} title="Storing and throwing it away">
+        <List items={plain.storage} icon={Package} tone="text-navy" />
+      </Step>
+
+      {(generic || brand || medicare || plain.drawbacks.length > 0) && (
+        <Step n={step()} icon={DollarSign} title="Cost and ways to save">
+          {generic && (
+            <p>
+              A generic version is available. Pharmacies pay about {money(generic.min)} per {generic.unit === "EA" ? "pill or unit" : generic.unit.toLowerCase()} for it; your price
+              depends on your insurance and pharmacy.
+            </p>
+          )}
+          {!generic && brand && <p>Only the brand-name version is sold. Ask about patient assistance programs and copay cards.</p>}
+          <List items={plain.drawbacks} icon={DollarSign} tone="text-[#6b4e00]" />
+          <p>
+            Compare cash prices on <SourceLink href={`https://www.goodrx.com/${encodeURIComponent(e.drug.replace(/\s+/g, "-"))}`}>GoodRx</SourceLink> or{" "}
+            <SourceLink href="https://costplusdrugs.com/medications/">Cost Plus Drugs</SourceLink>, and find help paying at{" "}
+            <SourceLink href="https://medicineassistancetool.org/">Medicine Assistance Tool</SourceLink>.
+          </p>
+        </Step>
+      )}
+
+      <Step n={step()} icon={HelpCircle} title="Questions to ask your doctor">
         <ul className="list-disc space-y-1 pl-5">
           {plain.questions.map((q) => (
             <li key={q}>{q}</li>
           ))}
         </ul>
-      </Card>
+      </Step>
+
+      {(medline.length > 0 || medlineEs.length > 0) && (
+        <Step n={step()} icon={ExternalLink} title="Learn more">
+          {medline.slice(0, 2).map((m) => (
+            <p key={m.url}>
+              <SourceLink href={m.url}>{m.title}</SourceLink> <span className="text-muted">(MedlinePlus, English)</span>
+            </p>
+          ))}
+          {medlineEs.slice(0, 1).map((m) => (
+            <p key={m.url} lang="es">
+              <SourceLink href={m.url}>{m.title}</SourceLink> <span className="text-muted">(MedlinePlus, en español)</span>
+            </p>
+          ))}
+          <p className="text-sm text-muted">MedlinePlus is the U.S. National Library of Medicine&apos;s health website for patients.</p>
+        </Step>
+      )}
 
       <p className="text-sm text-muted">
-        This handout is general information, not medical advice. Follow your doctor&apos;s instructions about your dose.
+        This handout is general information, not medical advice. Sources: {l ? "the FDA label and Medication Guide" : "public drug information"}
+        {medline.length ? ", MedlinePlus" : ""}. Follow your doctor&apos;s instructions about your dose.
       </p>
     </article>
   );

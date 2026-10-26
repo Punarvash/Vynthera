@@ -34,14 +34,14 @@ export function parseMedlinePlus(data: RawFeed): MedlinePlusEntry[] {
     .filter((e) => e.title && e.url.startsWith("https://"));
 }
 
-/** Try each RxNorm ID from the label until MedlinePlus has a page for one. */
-export async function medlinePlusForRxcuis(rxcuis: string[]): Promise<MedlinePlusEntry[]> {
+/** Try each RxNorm ID from the label until MedlinePlus has a page for one (English, or Spanish with "es"). */
+export async function medlinePlusForRxcuis(rxcuis: string[], language: "en" | "es" = "en"): Promise<MedlinePlusEntry[]> {
   "use cache";
   cacheLife("weeks");
   for (const rxcui of rxcuis.slice(0, 4)) {
     const url =
       `${BASE}?mainSearchCriteria.v.cs=${RXNORM_OID}&mainSearchCriteria.v.c=${encodeURIComponent(rxcui)}` +
-      `&knowledgeResponseType=application/json&informationRecipient.languageCode.c=en`;
+      `&knowledgeResponseType=application/json&informationRecipient.languageCode.c=${language}`;
     const entries = parseMedlinePlus(await getJson<RawFeed>(SOURCE, url));
     if (entries.length > 0) return entries;
   }
