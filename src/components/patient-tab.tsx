@@ -27,8 +27,19 @@ import { loadPatientInfo } from "@/lib/loaders";
 import { firstSentences, truncate } from "@/lib/text";
 import type { LabelTable } from "@/lib/types";
 
+/** Label cross-references ("( 2.1 )", "[see Warnings and Precautions ( 5.1 )]") help in the PDF, not on screen. */
+export function tidyLabel(text: string): string {
+  return text
+    .replace(/\s*\[see [^\]]{1,160}\]/gi, "")
+    .replace(/\s*\(\s*\d+(?:\.\d+)*(?:\s*,\s*\d+(?:\.\d+)*)*\s*\)/g, "")
+    .replace(/\s+([.,;])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 /** A long label section: the opening shown, the rest one click away. */
-export function LongText({ text, preview = 600 }: { text: string; preview?: number }) {
+export function LongText({ text: raw, preview = 600 }: { text: string; preview?: number }) {
+  const text = tidyLabel(raw);
   if (text.length <= preview + 100) return <p className="whitespace-pre-line">{text}</p>;
   return (
     <details>
@@ -205,10 +216,19 @@ export async function PatientTab({ drug, condition }: { drug: string; condition?
 
       {l?.boxedWarning && (
         <LabelSection id="pi-boxed" title="Boxed warning" open tone="danger">
-          <p className="flex gap-2">
+          <div className="flex gap-2">
             <ShieldAlert aria-hidden className="mt-1 size-5 shrink-0 text-[#8a1c12]" />
-            <span className="whitespace-pre-line">{l.boxedWarning}</span>
-          </p>
+            {/* The label repeats the warning as a short summary after the full text; show the summary first. */}
+            <div className="min-w-0">
+              <LongText text={l.boxedWarning.split(/See full prescribing information for complete boxed warning\.?/i)[1]?.trim() || l.boxedWarning} preview={500} />
+              {/See full prescribing information for complete boxed warning/i.test(l.boxedWarning) && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer font-medium text-navy underline">Full boxed warning</summary>
+                  <p className="mt-2 whitespace-pre-line">{tidyLabel(l.boxedWarning.split(/WARNING:[^.]*See full prescribing information/i)[0])}</p>
+                </details>
+              )}
+            </div>
+          </div>
         </LabelSection>
       )}
       {l?.indications && (

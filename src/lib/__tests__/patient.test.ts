@@ -86,3 +86,8 @@ describe("FDA Medication Guide", async () => {
     expect(s.callDoctor[0]).toMatch(/kidney problems/);
   });
 });
+
+it("strips label cross-references for reading on screen", async () => {
+  const { tidyLabel } = await import("../../components/patient-tab");
+  expect(tidyLabel("Take once daily ( 2.1 ). Monitor kidney function [see Warnings and Precautions ( 5.1 )].")).toBe("Take once daily. Monitor kidney function.");
+});

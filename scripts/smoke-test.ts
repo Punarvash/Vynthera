@@ -70,6 +70,8 @@ for (const [name, path] of pages) {
   const footerEnd = t.indexOf("pending legal review.");
   const body = footerStart >= 0 && footerEnd > footerStart ? t.slice(0, footerStart) + t.slice(footerEnd + 21) : t;
   console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, /tab=(costs|specialists|patient)/.test(path) ? 14000 : 5000));
+  // The patient view follows the physician view in the page; show it too.
+  if (path.includes("tab=patient")) console.log(`--- patient view ---\n${body.slice(body.indexOf("How to take it") - 1500).slice(0, 6000)}`);
 }
 if (failed) process.exitCode = 1;
 export {};
