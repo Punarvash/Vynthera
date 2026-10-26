@@ -1,10 +1,10 @@
 import { loadCostFiles } from "./costs";
 import { attempt } from "./evidence";
 import { baseDrugName, drugsByIndication, getLabel } from "./sources/openfda";
-import { loadPartBLimits, partBForDrug } from "./cost-details";
+import { loadPartBLimits, loadTopPrescribers, partBForDrug } from "./cost-details";
 import { specialtiesFor } from "./condition-specialties";
-import type { PartDRow } from "./cost-data";
-import { providerByNpi, type Provider } from "./sources/nppes";
+import type { PartDRow, TopEntry, TopPrescribersFile } from "./cost-data";
+import { providerByNpi, searchProviders, type Provider } from "./sources/nppes";
 import { aggregatePrescribers, topPrescribers, type PrescriberExperience, type RawPrescriberRow } from "./sources/prescribers";
 import { aggregateAdministrators, topAdministrators, type Administrator, type RawServiceRow } from "./sources/partb-providers";
 import { trialSites, type TrialSite } from "./sources/trial-sites";
@@ -96,6 +96,8 @@ export interface SpecialistContext {
 export interface SectionResult<T> {
   items: T[];
   problems: SourceProblem[];
+  /** Shown above the list, e.g. when Medicare data was unavailable and the list comes from the NPI Registry. */
+  note?: string;
 }
 
 const MAX_SHOWN = 15;
@@ -160,17 +162,103 @@ async function withProviders<T extends { npi: string }>(list: T[], problems: Sou
   return list.map((row, i) => ({ row, provider: found[i] }));
 }
 
+/**
+ * Prescribers from the weekly nationwide index (data/costs/prescribers-top.json): the most experienced prescribers
+ * of each drug, summed over the given drugs. With `types`, only those prescriber types.
+ */
+export function fromTopIndex(file: TopPrescribersFile, generics: string[], types?: string[]): PrescriberExperience[] {
+  const byNpi = new Map<string, PrescriberExperience>();
+  for (const g of generics) {
+    const d = file.drugs[g];
+    if (!d) continue;
+    const lists: TopEntry[][] = types?.length ? types.map((t) => d.types[t] ?? []) : [d.all];
+    for (const [npi, claims, benes] of lists.flat()) {
+      const person = file.people[npi];
+      if (!person) continue;
+      const [first, last, city, state, type] = person;
+      const p = byNpi.get(npi) ?? { npi, name: [first, last].filter(Boolean).join(" "), city, state, type, claims: 0, brands: [] };
+      p.claims += claims;
+      if (benes) p.patients = Math.max(p.patients ?? 0, benes);
+      if (!p.brands.includes(g)) p.brands.push(g);
+      byNpi.set(npi, p);
+    }
+  }
+  return [...byNpi.values()].sort((a, b) => b.claims - a.claims);
+}
+
+/** NPI Registry taxonomy names for CMS prescriber types where the two differ. */
+const NPPES_TAXONOMY: Record<string, string> = {
+  "Allergy/ Immunology": "Allergy & Immunology",
+  "Family Practice": "Family Medicine",
+  "Hematology-Oncology": "Hematology & Oncology",
+  "Pain Management": "Pain Medicine",
+  "Pediatric Medicine": "Pediatrics",
+};
+
+export function nppesTaxonomy(cmsType: string): string {
+  return NPPES_TAXONOMY[cmsType] ?? cmsType;
+}
+
+/** Clinicians of the specialties near the place, from the NPI Registry (no prescribing counts), alternating specialties. */
+async function registryFallback(ctx: SpecialistContext, problems: SourceProblem[]): Promise<Specialist[]> {
+  const { state, city } = ctx.filters;
+  if (!state || ctx.specialties.length === 0) return [];
+  const lists = await Promise.all(
+    ctx.specialties.map((t) => attempt("NPI Registry", problems, [] as Provider[], () => searchProviders({ specialty: nppesTaxonomy(t), state, city }))),
+  );
+  const out: Specialist[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; out.length < MAX_SHOWN && lists.some((l) => i < l.length); i++) {
+    for (const l of lists) {
+      const p = l[i];
+      if (p && !seen.has(p.npi) && out.length < MAX_SHOWN) {
+        seen.add(p.npi);
+        out.push({ provider: p });
+      }
+    }
+  }
+  return out;
+}
+
+const CMS_BUSY = "Medicare's prescribing data service is busy right now, so this list comes from the NPI Registry";
+
+/** Live data.cms.gov search; on failure, the problem is recorded and `failed` is set. */
+async function livePrescribers(ctx: SpecialistContext, params: Parameters<typeof topPrescribers>[1], size: number, problems: SourceProblem[]) {
+  let failed = false;
+  const rows = await attempt("CMS Part D Prescribers", problems, [] as RawPrescriberRow[], async () => {
+    try {
+      return await topPrescribers(ctx.apiUrl as string, params, size);
+    } catch (err) {
+      failed = true;
+      throw err;
+    }
+  });
+  return { rows, failed };
+}
+
 /** Dentists prescribe many antibiotics but are not who a physician refers to for a second opinion. */
 const NOT_FOR_REFERRAL = /^(dentist|oral surgery|student in an organized|clinic\/center|pharmacist)/i;
 
 /** Clinicians of the matching specialties who prescribe the condition's drugs most. */
 export async function conditionExperts(ctx: SpecialistContext): Promise<SectionResult<Specialist>> {
   const problems: SourceProblem[] = [];
-  if (!ctx.apiUrl || ctx.conditionDrugs.length === 0 || ctx.specialties.length === 0) return { items: [], problems };
+  if (ctx.conditionDrugs.length === 0 || ctx.specialties.length === 0) return { items: [], problems };
   const { state, city } = ctx.filters;
-  const rows = await attempt("CMS Part D Prescribers", problems, [] as RawPrescriberRow[], () =>
-    topPrescribers(ctx.apiUrl as string, { generics: ctx.conditionDrugs, state, city, types: ctx.specialties }, 200),
-  );
+  if (!state) {
+    // Nationwide: the weekly index, so no live query is needed.
+    const index = await loadTopPrescribers();
+    const top = index ? fromTopIndex(index, ctx.conditionDrugs, ctx.specialties).slice(0, MAX_SHOWN) : [];
+    if (top.length) return { items: (await withProviders(top, problems)).map(({ row, provider }) => ({ experience: row, provider })), problems };
+  }
+  if (!ctx.apiUrl) return { items: [], problems };
+  const { rows, failed } = await livePrescribers(ctx, { generics: ctx.conditionDrugs, state, city, types: ctx.specialties }, 200, problems);
+  if (failed) {
+    const items = await registryFallback(ctx, problems);
+    if (items.length) {
+      // The registry list replaces the Medicare one, so the Medicare error is explained by the note instead.
+      return { items, problems: problems.filter((p) => p.source !== "CMS Part D Prescribers"), note: `${CMS_BUSY}: ${ctx.specialties.join(", ")} clinicians in ${ctx.where}, without prescription counts. Try again in a few minutes for the ranked list.` };
+    }
+  }
   const top = aggregatePrescribers(rows).slice(0, MAX_SHOWN);
   return { items: (await withProviders(top, problems)).map(({ row, provider }) => ({ experience: row, provider })), problems };
 }
@@ -178,11 +266,21 @@ export async function conditionExperts(ctx: SpecialistContext): Promise<SectionR
 /** Clinicians who prescribe the drug most (Medicare Part D). */
 export async function drugExperts(ctx: SpecialistContext): Promise<SectionResult<Specialist>> {
   const problems: SourceProblem[] = [];
-  if (!ctx.apiUrl || ctx.drugGenerics.length === 0) return { items: [], problems };
+  if (ctx.drugGenerics.length === 0) return { items: [], problems };
   const { state, city, specialty } = ctx.filters;
-  const rows = await attempt("CMS Part D Prescribers", problems, [] as RawPrescriberRow[], () =>
-    topPrescribers(ctx.apiUrl as string, { generics: ctx.drugGenerics, state, city, types: specialty ? [specialty] : undefined }, 100),
-  );
+  if (!state) {
+    const index = await loadTopPrescribers();
+    const top = index ? fromTopIndex(index, ctx.drugGenerics, specialty ? [specialty] : undefined).slice(0, MAX_SHOWN) : [];
+    if (top.length) return { items: (await withProviders(top, problems)).map(({ row, provider }) => ({ experience: row, provider })), problems };
+  }
+  if (!ctx.apiUrl) return { items: [], problems };
+  const { rows, failed } = await livePrescribers(ctx, { generics: ctx.drugGenerics, state, city, types: specialty ? [specialty] : undefined }, 100, problems);
+  if (failed && specialty) {
+    const items = await registryFallback(ctx, problems);
+    if (items.length) {
+      return { items, problems: problems.filter((p) => p.source !== "CMS Part D Prescribers"), note: `${CMS_BUSY}: ${specialty} clinicians in ${ctx.where}, without prescription counts. Try again in a few minutes for the ranked list.` };
+    }
+  }
   const top = aggregatePrescribers(rows)
     .filter((p) => specialty || !NOT_FOR_REFERRAL.test(p.type))
     .slice(0, MAX_SHOWN);

@@ -10,6 +10,7 @@ import type {
   PartBSpendingRow,
   PlanCoverage,
   PlanCoverageFile,
+  TopPrescribersFile,
   VaFile,
 } from "./cost-data";
 import type { CostBundle } from "./costs";
@@ -30,6 +31,7 @@ interface ExtraFiles {
   negotiated: NegotiatedFile | null;
   va: VaFile | null;
   history: NadacHistoryFile | null;
+  topPrescribers: TopPrescribersFile | null;
 }
 
 let extra: Promise<ExtraFiles> | null = null;
@@ -37,7 +39,7 @@ let extra: Promise<ExtraFiles> | null = null;
 /** Larger weekly imports, read once per server instance; a missing file just hides its section. */
 function loadExtraFiles(): Promise<ExtraFiles> {
   if (isDemoMode()) {
-    return Promise.resolve({ coverage: demoPlanCoverage, partB: demoPartB, partBSpending: null, negotiated: demoNegotiated, va: demoVa, history: null });
+    return Promise.resolve({ coverage: demoPlanCoverage, partB: demoPartB, partBSpending: null, negotiated: demoNegotiated, va: demoVa, history: null, topPrescribers: null });
   }
   extra ??= (async () => {
     const read = async <T>(name: string): Promise<T | null> => {
@@ -47,15 +49,16 @@ function loadExtraFiles(): Promise<ExtraFiles> {
         return null;
       }
     };
-    const [coverage, partB, partBSpending, negotiated, va, history] = await Promise.all([
+    const [coverage, partB, partBSpending, negotiated, va, history, topPrescribers] = await Promise.all([
       read<PlanCoverageFile>("plan-coverage.json"),
       read<PartBFile>("partb.json"),
       read<PartBSpendingFile>("partb-spending.json"),
       read<NegotiatedFile>("negotiated.json"),
       read<VaFile>("va.json"),
       read<NadacHistoryFile>("nadac-history.json"),
+      read<TopPrescribersFile>("prescribers-top.json"),
     ]);
-    return { coverage, partB, partBSpending, negotiated, va, history };
+    return { coverage, partB, partBSpending, negotiated, va, history, topPrescribers };
   })();
   return extra;
 }
@@ -63,6 +66,11 @@ function loadExtraFiles(): Promise<ExtraFiles> {
 /** Part B payment limits (billing codes per drug), shared with the Specialists tab. */
 export async function loadPartBLimits(): Promise<PartBFile | null> {
   return (await loadExtraFiles()).partB;
+}
+
+/** The weekly nationwide top-prescriber index, shared with the Specialists tab. */
+export async function loadTopPrescribers(): Promise<TopPrescribersFile | null> {
+  return (await loadExtraFiles()).topPrescribers;
 }
 
 export interface CoverageStats {

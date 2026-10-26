@@ -1,5 +1,5 @@
 // Pure parsers for the Part B, negotiated price, VA and NADAC history imports. Unit-tested; no I/O.
-import type { NegotiatedRow, PartBLimit, PartBSpendingRow, VaRow } from "../../src/lib/cost-data.ts";
+import type { NegotiatedRow, PartBLimit, PartBSpendingRow, TopEntry, TopPrescribersFile, VaRow } from "../../src/lib/cost-data.ts";
 import { normalizeHeader, toIsoDate, toNumber } from "./parse.ts";
 
 /** CMS CSVs start with title lines; the header is the first row whose first cell matches. */
@@ -209,5 +209,94 @@ export class NadacHistory {
       });
     }
     return { months, rows };
+  }
+}
+
+function insertTop(list: TopEntry[], e: TopEntry, max: number): boolean {
+  const i = list.findIndex((x) => x[0] === e[0]);
+  if (i >= 0) {
+    // Same prescriber seen again (rows out of order): add the claims together.
+    list[i] = [e[0], list[i][1] + e[1], Math.max(list[i][2], e[2])];
+  } else {
+    if (list.length >= max && e[1] <= list[list.length - 1][1]) return false;
+    list.push(e);
+  }
+  list.sort((a, b) => b[1] - a[1]);
+  if (list.length > max) list.length = max;
+  return true;
+}
+
+/**
+ * Streams "Medicare Part D Prescribers - by Provider and Drug" (one row per prescriber, drug and brand)
+ * and keeps the most experienced prescribers of each drug nationwide, overall and per specialty.
+ */
+export class TopPrescribers {
+  private cols: Record<string, number> = {};
+  private drugs = new Map<string, { all: TopEntry[]; types: Map<string, TopEntry[]> }>();
+  private people = new Map<string, [string, string, string, string, string]>();
+
+  /** `notOverall`: prescriber types left out of the overall list (they still count for their own type). */
+  constructor(private types: Set<string>, private notOverall?: RegExp, private maxAll = 15, private maxPerType = 5) {}
+
+  header(fields: string[]): void {
+    const names = fields.map((f) => f.replace(/^﻿/, "").trim());
+    for (const k of ["Prscrbr_NPI", "Prscrbr_Last_Org_Name", "Prscrbr_First_Name", "Prscrbr_City", "Prscrbr_State_Abrvtn", "Prscrbr_Type", "Gnrc_Name", "Tot_Clms", "Tot_Benes"]) {
+      this.cols[k] = names.indexOf(k);
+      if (this.cols[k] < 0) throw new Error(`Prescriber file is missing ${k}`);
+    }
+  }
+
+  /** The file is grouped by prescriber: rows of the current one, totaled per drug over its brands. */
+  private current = { npi: "", person: ["", "", "", "", ""] as [string, string, string, string, string], drugs: new Map<string, TopEntry>() };
+
+  add(f: string[]): void {
+    const c = this.cols;
+    const npi = f[c.Prscrbr_NPI]?.trim();
+    const generic = f[c.Gnrc_Name]?.trim();
+    const claims = Number(f[c.Tot_Clms]) || 0;
+    if (!npi || !generic || claims <= 0) return;
+    if (npi !== this.current.npi) {
+      this.flush();
+      const type = f[c.Prscrbr_Type]?.trim() ?? "";
+      this.current = { npi, person: [f[c.Prscrbr_First_Name]?.trim() ?? "", f[c.Prscrbr_Last_Org_Name]?.trim() ?? "", f[c.Prscrbr_City]?.trim() ?? "", f[c.Prscrbr_State_Abrvtn]?.trim() ?? "", type], drugs: new Map() };
+    }
+    const benes = Number(f[c.Tot_Benes]) || 0;
+    const prev = this.current.drugs.get(generic);
+    this.current.drugs.set(generic, prev ? [npi, prev[1] + claims, Math.max(prev[2], benes)] : [npi, claims, benes]);
+  }
+
+  private flush(): void {
+    const { npi, person, drugs } = this.current;
+    const type = person[4];
+    for (const [generic, e] of drugs) {
+      let d = this.drugs.get(generic);
+      if (!d) {
+        d = { all: [], types: new Map() };
+        this.drugs.set(generic, d);
+      }
+      let kept = this.notOverall?.test(type) ? false : insertTop(d.all, [...e] as TopEntry, this.maxAll);
+      if (this.types.has(type)) {
+        const t = d.types.get(type) ?? [];
+        kept = insertTop(t, [...e] as TopEntry, this.maxPerType) || kept;
+        d.types.set(type, t);
+      }
+      if (kept && !this.people.has(npi)) this.people.set(npi, person);
+    }
+    drugs.clear();
+  }
+
+  result(year: number, sourceUrl: string): TopPrescribersFile {
+    this.flush();
+    const drugs: TopPrescribersFile["drugs"] = {};
+    const used = new Set<string>();
+    for (const [g, d] of this.drugs) {
+      const types = Object.fromEntries([...d.types.entries()].filter(([, l]) => l.length));
+      drugs[g] = { all: d.all, types };
+      for (const e of d.all) used.add(e[0]);
+      for (const l of Object.values(types)) for (const e of l) used.add(e[0]);
+    }
+    // Only prescribers that made a list (the NPI map collects some that were later pushed out).
+    const people = Object.fromEntries([...this.people.entries()].filter(([npi]) => used.has(npi)));
+    return { year, sourceUrl, people, drugs };
   }
 }

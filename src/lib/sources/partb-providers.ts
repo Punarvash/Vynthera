@@ -61,7 +61,8 @@ export async function topAdministrators(
   params: { hcpcs: string[]; state?: string; city?: string; types?: string[] },
   size = 100,
 ): Promise<RawServiceRow[]> {
-  "use cache";
+  // Shared across server instances: data.cms.gov rate-limits bursts and these sorted queries take seconds.
+  "use cache: remote";
   cacheLife("weeks");
   const q = new URLSearchParams({ size: String(size), sort: "-Tot_Benes" });
   cmsFilter(q, "HCPCS_Cd", params.hcpcs);

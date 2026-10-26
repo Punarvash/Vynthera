@@ -77,7 +77,8 @@ export async function topPrescribers(
   params: { generics: string[]; state?: string; city?: string; types?: string[] },
   size = 100,
 ): Promise<RawPrescriberRow[]> {
-  "use cache";
+  // Shared across server instances: data.cms.gov rate-limits bursts and these sorted queries take seconds.
+  "use cache: remote";
   cacheLife("weeks");
   const q = new URLSearchParams({ size: String(size), sort: "-Tot_Clms" });
   cmsFilter(q, "Gnrc_Name", params.generics);

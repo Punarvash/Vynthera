@@ -132,6 +132,18 @@ export interface NadacHistoryFile {
   rows: Record<string, (number | null)[]>;
 }
 
+/** [NPI, Medicare claims, Medicare patients (0 when CMS hides counts under 11)]. */
+export type TopEntry = [string, number, number];
+
+export interface TopPrescribersFile {
+  year: number;
+  sourceUrl: string;
+  /** NPI -> [first name, last or organization name, city, state, prescriber type]. */
+  people: Record<string, [string, string, string, string, string]>;
+  /** CMS generic name -> most experienced prescribers nationwide, overall and per prescriber type. */
+  drugs: Record<string, { all: TopEntry[]; types: Record<string, TopEntry[]> }>;
+}
+
 export interface CostMeta {
   importedAt: string;
   nadac?: { title: string; url: string; asOf: string; rows: number };
@@ -146,4 +158,6 @@ export interface CostMeta {
   prescribers?: { title: string; apiUrl: string; year?: number };
   /** data.cms.gov API for "Medicare Physician & Other Practitioners - by Provider and Service" (clinic-given drugs). */
   partBProviders?: { title: string; apiUrl: string; year?: number };
+  /** data/costs/prescribers-top.json: most experienced Part D prescribers of each drug nationwide. */
+  topPrescribers?: { url: string; year: number; drugs: number };
 }

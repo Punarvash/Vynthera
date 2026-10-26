@@ -4,13 +4,13 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { CostMeta, NegotiatedFile, PartBFile, PartBSpendingFile, PlanCoverageFile, VaFile } from "../../src/lib/cost-data.ts";
 import { collect, csvRecords, download, extract, fetchOk, pipeRecords, zipEntries, zipLines } from "./io.ts";
 import { pickCsv, pickDataset, toIsoDate } from "./parse.ts";
-import { parseNegotiated, parsePartB, parsePartBSpending, parseSharedStrings, parseVaPrices, sheetRows } from "./parse-extra.ts";
+import { parseNegotiated, parsePartB, parsePartBSpending, parseSharedStrings, parseVaPrices, sheetRows, TopPrescribers } from "./parse-extra.ts";
 import { CostReader, FormularyReader, PlanReader, summarizeCoverage } from "./parse-formulary.ts";
 
 const OUT_DIR = new URL("../../data/costs/", import.meta.url);
 /** Bump when the plan coverage summary logic changes, so the same CMS file is summarized again. */
 const PLAN_COVERAGE_VERSION = 2;
-type Catalog = { dataset?: { title?: string; modified?: string; distribution?: { title?: string; downloadURL?: string; format?: string; mediaType?: string }[] }[] };
+type Catalog = { dataset?: { title?: string; modified?: string; distribution?: { title?: string; downloadURL?: string; format?: string; mediaType?: string; temporal?: string }[] }[] };
 
 async function save(name: string, data: unknown): Promise<void> {
   await writeFile(new URL(name, OUT_DIR), JSON.stringify(data));
@@ -160,6 +160,42 @@ export async function importVa(meta: CostMeta): Promise<void> {
   await save("va.json", file);
   meta.va = { url, asOf, rows: rows.length };
   console.log(`VA FSS: ${rows.length} products, prices of ${asOf}`);
+}
+
+/** Prescriber types the Specialists tab filters by (CMS spelling); keep in sync with SPECIALTIES in src/lib/specialists.ts. */
+const SPECIALIST_TYPES = [
+  "Allergy/ Immunology", "Cardiology", "Dermatology", "Endocrinology", "Family Practice", "Gastroenterology", "Geriatric Medicine",
+  "Hematology-Oncology", "Infectious Disease", "Internal Medicine", "Medical Oncology", "Nephrology", "Neurology",
+  "Obstetrics & Gynecology", "Ophthalmology", "Otolaryngology", "Pain Management", "Pediatric Medicine", "Psychiatry",
+  "Pulmonary Disease", "Rheumatology", "Urology",
+];
+
+/**
+ * The most experienced prescribers of each drug nationwide, from the full "Medicare Part D Prescribers - by Provider
+ * and Drug" file, so nationwide Specialists lists do not depend on the (rate-limited) data.cms.gov API.
+ */
+export async function importTopPrescribers(meta: CostMeta, cms: Catalog): Promise<void> {
+  const d = pickDataset(cms.dataset ?? [], /^Medicare Part D Prescribers - by Provider and Drug\b/i);
+  const csv = d && pickCsv(d);
+  if (!csv?.downloadURL) throw new Error("Medicare Part D Prescribers by Provider and Drug not found in the CMS catalog");
+  const top = new TopPrescribers(new Set(SPECIALIST_TYPES), /^(dentist|oral surgery|student in an organized|clinic\/center|pharmacist)/i);
+  let first = true;
+  let n = 0;
+  for await (const f of csvRecords(csv.downloadURL)) {
+    if (first) {
+      top.header(f);
+      first = false;
+    } else {
+      top.add(f);
+      if (++n % 5_000_000 === 0) console.log(`  prescribers: ${n} rows`);
+    }
+  }
+  if (n < 1_000_000) throw new Error(`Prescriber file looks wrong: only ${n} rows`);
+  const year = Number((csv.title ?? csv.temporal ?? "").match(/\b20\d{2}\b/g)?.pop()) || meta.prescribers?.year || 0;
+  const file = top.result(year, csv.downloadURL);
+  await save("prescribers-top.json", file);
+  meta.topPrescribers = { url: csv.downloadURL, year, drugs: Object.keys(file.drugs).length };
+  console.log(`Top prescribers: ${n} rows, ${Object.keys(file.drugs).length} drugs, ${Object.keys(file.people).length} prescribers`);
 }
 
 /** Condition names for search suggestions, from NLM Clinical Tables (consumer and clinical names). */

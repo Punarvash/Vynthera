@@ -247,6 +247,7 @@ async function ConditionSection({ ctx }: { ctx: SpecialistContext }) {
   return (
     <>
       <SourceProblems problems={r.problems} />
+      {r.note && <p className="mb-3 rounded-lg border border-line bg-cream px-4 py-3 text-[0.95rem]">{r.note}</p>}
       <SpecialistList
         items={r.items}
         what="Prescribed"
@@ -266,6 +267,7 @@ async function DrugSection({ ctx }: { ctx: SpecialistContext }) {
   return (
     <>
       <SourceProblems problems={r.problems} />
+      {r.note && <p className="mb-3 rounded-lg border border-line bg-cream px-4 py-3 text-[0.95rem]">{r.note}</p>}
       <SpecialistList
         items={r.items}
         what="Prescribed"

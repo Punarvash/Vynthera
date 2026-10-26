@@ -8,7 +8,7 @@ import type { CostMeta, NadacFile, NadacHistoryFile, PartDFile } from "../../src
 import { NadacHistory } from "./parse-extra.ts";
 import { NadacAccumulator, parsePartD, pickApi, pickCsv, pickDataset, toIsoDate } from "./parse.ts";
 import { csvRecords, fetchOk } from "./io.ts";
-import { importConditionNames, importNegotiated, importPartB, importPartBSpending, importPlanCoverage, importVa } from "./import-extra.ts";
+import { importConditionNames, importNegotiated, importTopPrescribers, importPartB, importPartBSpending, importPlanCoverage, importVa } from "./import-extra.ts";
 
 const OUT_DIR = new URL("../../data/costs/", import.meta.url);
 const MEDICAID_CATALOG = "https://data.medicaid.gov/api/1/metastore/schemas/dataset/items";
@@ -153,6 +153,7 @@ async function main(): Promise<void> {
       ["Negotiated Medicare prices", () => importNegotiated(meta)],
       ["VA Federal Supply Schedule", () => importVa(meta)],
       ["Search condition names", () => importConditionNames()],
+      ["Top prescribers nationwide", () => importTopPrescribers(meta, cms)],
     );
   }
   for (const [name, step] of steps) {
