@@ -9,35 +9,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Discover links
-        run: node scripts/probe/costs-sources-2.ts
       - name: Inspect files
         shell: bash
         run: |
           set +e
-          u() { node -e "console.log(require('./probe-urls.json')['$1'] ?? '')"; }
-          peek_zip() {
-            echo "##### $1"; unzip -l "$1" | head -30
-            unzip -Z1 "$1" | while IFS= read -r f; do
-              case "$f" in */) continue ;; esac
-              echo "=== $f"
-              case "$f" in
-                *pharmacy*) echo "(skipped)";;
-                *.zip) unzip -p "$1" "$f" > inner.zip; unzip -Z1 inner.zip | while IFS= read -r g; do echo "--- $g ($(unzip -p inner.zip "$g" | wc -l) lines)"; unzip -p inner.zip "$g" | head -4 | cut -c1-700; done ;;
-                *.txt|*.csv) echo "($(unzip -p "$1" "$f" | wc -l) lines)"; unzip -p "$1" "$f" | head -4 | cut -c1-700 ;;
-                *) echo "(binary)";;
-              esac
-            done
-          }
-          for k in asp aspCrosswalk orangeBook; do url=$(u $k); [ -n "$url" ] && curl -sSL -A "Vynthera data probe" -o $k.zip "$url" && peek_zip $k.zip; done
-          for k in purple partb; do url=$(u $k); [ -n "$url" ] && { echo "##### $k"; curl -sSL -A "Vynthera data probe" "$url" | head -5 | cut -c1-1500; }; done
-          url=$(u va); [ -n "$url" ] && { echo "##### va $url"; curl -sSL -A "Vynthera data probe" -o va.bin "$url"; ls -la va.bin; file va.bin; }
-          url=$(u formulary)
-          if [ -n "$url" ]; then
-            time curl -sSL -A "Vynthera data probe" -o formulary.zip "$url"
-            peek_zip formulary.zip
-          fi
+          A="Vynthera data probe"
+          echo "##### ASP payment limits"
+          curl -sSL -A "$A" -o asp.zip https://www.cms.gov/files/zip/october-2026-medicare-part-b-payment-limit-files-final.zip
+          unzip -p asp.zip "section 508 version of October 2026 Medicare Part B Payment Limit File 091626.csv" | sed -n '1,16p;100,103p' | cut -c1-600
+          echo "##### ASP crosswalk"
+          curl -sSL -A "$A" -o cw.zip https://www.cms.gov/files/zip/october-2026-ndc-hcpcs-crosswalk-final.zip
+          unzip -p cw.zip "section 508 version of October 2026 ASP NDC-HCPCS Crosswalk 091126.csv" | sed -n '4,14p;500,502p' | cut -c1-600
+          echo "##### Negotiated prices zip"
+          curl -sSL -A "$A" -o mfp.zip https://www.cms.gov/files/zip/selected-drug-list-negotiated-prices-also-known-maximum-fair-prices-statutezip.zip
+          ls -la mfp.zip; unzip -l mfp.zip
+          unzip -Z1 mfp.zip | while IFS= read -r f; do echo "=== $f"; case "$f" in *.csv|*.txt) unzip -p mfp.zip "$f" | head -40 | cut -c1-500;; *.xlsx) unzip -p mfp.zip "$f" > m.xlsx; unzip -l m.xlsx; unzip -p m.xlsx xl/sharedStrings.xml | head -c 6000; echo; unzip -p m.xlsx xl/worksheets/sheet1.xml | head -c 3000; echo;; esac; done
+          echo "##### VA FSS"
+          curl -sSL -A "$A" -o va.xlsx https://department.va.gov/procurement-acquisition-and-logistics/wp-content/uploads/sites/56/2026/10/TPharmPrices2026-10-15.xlsx
+          unzip -l va.xlsx
+          unzip -p va.xlsx xl/workbook.xml | head -c 2000; echo
+          unzip -p va.xlsx xl/sharedStrings.xml | head -c 4000; echo
+          unzip -p va.xlsx xl/worksheets/sheet1.xml | head -c 4000; echo
+          echo "##### Formulary value distributions"
+          curl -sSL -A "$A" -o f.zip https://data.cms.gov/sites/default/files/2026-09/903ba816-d276-4c17-9b5a-0224bbd4e949/2026_20260916.zip
+          unzip -p f.zip "beneficiary cost file  20260930.zip" > bc.zip; unzip -p bc.zip | awk -F'|' 'NR>1{c[$4"|"$6"|"$7"|"$11]++} END{for(k in c) print k, c[k]}' | sort | head -60
+          unzip -p f.zip "plan information  20260930.zip" > pi.zip
+          unzip -p pi.zip | awk -F'|' 'NR>1{k=$1"|"$2"|"$3; if(!(k in s)){s[k]=1; n++; t[substr($1,1,1)]++; snp[$13]++; sup[$14]++}} END{print "plans",n; for(x in t) print "type",x,t[x]; for(x in snp) print "snp",x,snp[x]; for(x in sup) print "suppressed",x,sup[x]}'
+          unzip -p pi.zip | awk -F'|' 'NR>1{print $4}' | sort | uniq -c | sort -rn | head -40
+          unzip -p pi.zip | awk -F'|' 'NR>1 && substr($1,1,1)=="S"{print $5}' | sort -u | head -40
+          unzip -p f.zip "basic drugs formulary file  20260930.zip" > bf.zip
+          unzip -p bf.zip | awk -F'|' 'NR>1{r[$4]=1; f[$1]=1; t[$6]++} END{n=0; for(x in r) n++; m=0; for(x in f) m++; print "rxcuis",n,"formularies",m; for(x in t) print "tier",x,t[x]}'
