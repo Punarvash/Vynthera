@@ -1,13 +1,14 @@
-// Weekly import of public drug cost data into data/costs/.
+// Weekly import of public drug cost data into data/costs/: NADAC (with price history), Medicare Part D
+// spending and plan coverage, Part B prices and spending, negotiated Medicare prices and VA prices.
 // Run: node scripts/costs/import.ts            (downloads the newest datasets)
 //      node scripts/costs/import.ts --nadac-file nadac.csv --partd-file partd.csv   (use local CSVs)
 // GitHub Actions runs this every week (.github/workflows/import-costs.yml); "Run workflow" refreshes on demand.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { createReadStream } from "node:fs";
-import { Readable } from "node:stream";
-import { createInterface } from "node:readline";
-import type { CostMeta, NadacFile, PartDFile } from "../../src/lib/cost-data.ts";
-import { endsInsideQuotes, NadacAccumulator, parsePartD, pickApi, pickCsv, pickDataset, splitCsvLine, toIsoDate } from "./parse.ts";
+import type { CostMeta, NadacFile, NadacHistoryFile, PartDFile } from "../../src/lib/cost-data.ts";
+import { NadacHistory } from "./parse-extra.ts";
+import { NadacAccumulator, parsePartD, pickApi, pickCsv, pickDataset, toIsoDate } from "./parse.ts";
+import { csvRecords, fetchOk } from "./io.ts";
+import { importNegotiated, importPartB, importPartBSpending, importPlanCoverage, importVa } from "./import-extra.ts";
 
 const OUT_DIR = new URL("../../data/costs/", import.meta.url);
 const MEDICAID_CATALOG = "https://data.medicaid.gov/api/1/metastore/schemas/dataset/items";
@@ -18,29 +19,10 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-async function fetchOk(url: string): Promise<Response> {
-  const res = await fetch(url, { headers: { "User-Agent": "Vynthera cost import" } });
-  if (!res.ok || !res.body) throw new Error(`GET ${url} -> HTTP ${res.status}`);
-  return res;
-}
-
-/** Stream CSV records from a URL or local file, yielding parsed fields per record. */
-async function* csvRecords(source: string): AsyncGenerator<string[]> {
-  const input = /^https?:/.test(source)
-    ? Readable.fromWeb((await fetchOk(source)).body as import("node:stream/web").ReadableStream)
-    : createReadStream(source);
-  let pending = "";
-  for await (const line of createInterface({ input, crlfDelay: Infinity })) {
-    pending = pending ? `${pending}\n${line}` : line;
-    if (endsInsideQuotes(pending)) continue;
-    if (pending.trim()) yield splitCsvLine(pending);
-    pending = "";
-  }
-}
-
 async function importNadac(meta: CostMeta): Promise<void> {
   let url = arg("--nadac-file");
   let title = "NADAC (local file)";
+  let previous: { title: string; url: string } | undefined;
   if (!url) {
     const catalog = (await (await fetchOk(MEDICAID_CATALOG)).json()) as Parameters<typeof pickDataset>[0];
     const dataset = pickDataset(catalog, /^NADAC \(National Average Drug Acquisition Cost\)/i);
@@ -48,9 +30,15 @@ async function importNadac(meta: CostMeta): Promise<void> {
     if (!dataset || !csv?.downloadURL) throw new Error("Could not find the NADAC dataset in the data.medicaid.gov catalog");
     url = csv.downloadURL;
     title = dataset.title ?? title;
+    const year = Number(title.match(/\b(20\d{2})\b/)?.[1]);
+    const last = year ? pickDataset(catalog, new RegExp(`^NADAC \\(National Average Drug Acquisition Cost\\) ${year - 1}$`, "i")) : undefined;
+    const lastCsv = last && pickCsv(last);
+    if (last && lastCsv?.downloadURL) previous = { title: last.title ?? "", url: lastCsv.downloadURL };
   }
   console.log(`NADAC: reading ${title} from ${url}`);
+  const history = new NadacHistory();
   const acc = new NadacAccumulator();
+  acc.onRow = (d, p, a) => history.add(d, p, a);
   let n = 0;
   for await (const fields of csvRecords(url)) {
     if (n++ === 0) acc.setHeader(fields);
@@ -62,6 +50,28 @@ async function importNadac(meta: CostMeta): Promise<void> {
   await writeFile(new URL("nadac.json", OUT_DIR), JSON.stringify(file));
   meta.nadac = { title, url, asOf: acc.latestAsOf, rows: rows.length };
   console.log(`NADAC: ${n - 1} records -> ${rows.length} products, as of ${acc.latestAsOf}`);
+
+  // Price history: last year's dataset as well, for two years of monthly prices.
+  if (previous) {
+    console.log(`NADAC history: reading ${previous.title}`);
+    const prev = new NadacAccumulator();
+    prev.onRow = (d, p, a) => history.add(d, p, a);
+    let m = 0;
+    for await (const fields of csvRecords(previous.url)) {
+      if (m++ === 0) prev.setHeader(fields);
+      else prev.add(fields);
+    }
+  }
+  const h = history.result(new Set(rows.map((r) => r[0])), 24);
+  await writeHistory(h);
+  meta.nadacHistory = { years: [...new Set(h.months.map((x) => Number(x.slice(0, 4))))], months: h.months.length };
+  console.log(`NADAC history: ${Object.keys(h.rows).length} products over ${h.months.length} months`);
+}
+
+/** One product per line, so weekly commits change only the lines whose prices changed. */
+async function writeHistory(h: NadacHistoryFile): Promise<void> {
+  const lines = Object.entries(h.rows).map(([d, v]) => `${JSON.stringify(d)}:${JSON.stringify(v)}`);
+  await writeFile(new URL("nadac-history.json", OUT_DIR), `{"months":${JSON.stringify(h.months)},"rows":{\n${lines.join(",\n")}\n}}\n`);
 }
 
 async function importCms(meta: CostMeta): Promise<void> {
@@ -115,9 +125,31 @@ async function main(): Promise<void> {
     // First run.
   }
   const failures: string[] = [];
-  for (const [name, step] of [["NADAC", importNadac], ["CMS", importCms]] as const) {
+  const local = Boolean(arg("--nadac-file") || arg("--partd-file"));
+  let cms: Parameters<typeof importPlanCoverage>[1] = {};
+  if (!local) {
     try {
-      await step(meta);
+      cms = (await (await fetchOk(CMS_CATALOG)).json()) as typeof cms;
+    } catch (err) {
+      failures.push(`CMS catalog: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  const steps: [string, () => Promise<void>][] = [
+    ["NADAC", () => importNadac(meta)],
+    ["CMS Part D spending", () => importCms(meta)],
+  ];
+  if (!local) {
+    steps.push(
+      ["Medicare plan coverage", () => importPlanCoverage(meta, cms)],
+      ["Medicare Part B prices", () => importPartB(meta)],
+      ["Medicare Part B spending", () => importPartBSpending(meta, cms)],
+      ["Negotiated Medicare prices", () => importNegotiated(meta)],
+      ["VA Federal Supply Schedule", () => importVa(meta)],
+    );
+  }
+  for (const [name, step] of steps) {
+    try {
+      await step();
     } catch (err) {
       failures.push(`${name}: ${err instanceof Error ? err.message : String(err)}`);
     }

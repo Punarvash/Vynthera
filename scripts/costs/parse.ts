@@ -73,6 +73,8 @@ export class NadacAccumulator {
   private byNdc = new Map<string, NadacLatest>();
   private cols: Record<string, number> = {};
   latestAsOf = "";
+  /** Receives every priced row, for the month-by-month price history. */
+  onRow?: (description: string, price: number, asOf: string) => void;
 
   setHeader(header: string[]): void {
     const names = header.map(normalizeHeader);
@@ -106,6 +108,7 @@ export class NadacAccumulator {
       otc: c.otc >= 0 ? (fields[c.otc] ?? "").trim().charAt(0).toUpperCase() : "",
     };
     if (row.asOf > this.latestAsOf) this.latestAsOf = row.asOf;
+    this.onRow?.(row.description, price, row.asOf);
     const prev = this.byNdc.get(ndc);
     if (!prev || `${row.asOf}|${row.effective}` >= `${prev.asOf}|${prev.effective}`) this.byNdc.set(ndc, row);
   }

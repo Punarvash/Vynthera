@@ -1,6 +1,7 @@
 name: Import cost data
 
-# Weekly refresh of public drug prices (Medicaid NADAC, Medicare Part D).
+# Weekly refresh of public drug prices and coverage (NADAC, Medicare Part D and Part B, Medicare plan formularies,
+# negotiated Medicare prices, VA Federal Supply Schedule).
 # To refresh now: Actions -> Import cost data -> Run workflow.
 on:
   schedule:
@@ -17,7 +18,7 @@ concurrency:
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
