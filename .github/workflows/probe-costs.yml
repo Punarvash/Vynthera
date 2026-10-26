@@ -1,0 +1,36 @@
+name: Probe cost data sources
+
+# Manual: lists the layout of public cost datasets so importers can be written against them.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Discover datasets
+        run: node scripts/probe/costs-sources.ts
+      - name: Inspect the Part D formulary files
+        run: |
+          url=$(node -e 'console.log(require("./probe-urls.json").formulary ?? "")')
+          if [ -z "$url" ]; then echo "No formulary URL"; exit 0; fi
+          curl -sSL -A "Vynthera data probe" -o formulary.zip "$url"
+          ls -la formulary.zip
+          unzip -l formulary.zip | head -40
+          for f in $(unzip -Z1 formulary.zip | head -20); do
+            echo "=== $f"
+            case "$f" in
+              *.zip) unzip -p formulary.zip "$f" > inner.zip; unzip -l inner.zip | head; for g in $(unzip -Z1 inner.zip); do echo "--- $g"; unzip -p inner.zip "$g" | head -c 1200; echo; done ;;
+              *) unzip -p formulary.zip "$f" | head -c 1200; echo ;;
+            esac
+          done
+      - name: Inspect Orange Book and Part B spending
+        run: |
+          curl -sSL -A "Vynthera data probe" -o ob.zip https://www.fda.gov/media/76860/download && unzip -l ob.zip && for f in $(unzip -Z1 ob.zip); do echo "=== $f"; unzip -p ob.zip "$f" | head -5; done
+          url=$(node -e 'console.log(require("./probe-urls.json").partb ?? "")')
+          if [ -n "$url" ]; then curl -sSL "$url" | head -c 2000; fi
