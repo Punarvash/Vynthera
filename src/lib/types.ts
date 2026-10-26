@@ -112,6 +112,24 @@ export interface DrugLabel {
   warnings?: string;
   contraindications?: string;
   pregnancy?: string;
+  lactation?: string;
+  pediatricUse?: string;
+  geriatricUse?: string;
+  /** Use in specific populations (renal and hepatic impairment and others). */
+  specificPopulations?: string;
+  interactions?: string;
+  overdosage?: string;
+  pharmacokinetics?: string;
+  storage?: string;
+  howSupplied?: string;
+  /** Patient counseling information (section 17). */
+  patientCounseling?: string;
+  /** FDA-approved patient Medication Guide or patient package insert, written for patients. */
+  medGuide?: string;
+  /** Over-the-counter Drug Facts sections. */
+  otc?: { purpose?: string; whenUsing?: string; doNotUse?: string; askDoctor?: string; stopUse?: string; directions?: string };
+  /** DEA schedule, e.g. "CII", for controlled substances. */
+  controlledSubstance?: string;
   setId: string;
   /** ISO date (YYYY-MM-DD) of the label version. */
   effectiveDate?: string;

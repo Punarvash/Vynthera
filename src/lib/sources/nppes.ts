@@ -18,8 +18,10 @@ interface RawResult {
     state?: string;
     postal_code?: string;
     telephone_number?: string;
+    fax_number?: string;
   }[];
-  taxonomies?: { desc?: string; primary?: boolean }[];
+  taxonomies?: { desc?: string; primary?: boolean; state?: string; license?: string }[];
+  endpoints?: { endpoint?: string; endpointType?: string; endpointDescription?: string }[];
 }
 
 export interface Provider {
@@ -32,6 +34,11 @@ export interface Provider {
   city?: string;
   state?: string;
   phone?: string;
+  fax?: string;
+  /** Secure Direct messaging address (for clinician-to-clinician messages), when the provider lists one. */
+  directAddress?: string;
+  /** States where the provider lists a license. */
+  licensedIn: string[];
   registryUrl: string;
 }
 
@@ -57,6 +64,9 @@ export function toProvider(r: RawResult): Provider | null {
     city: loc?.city ? `${titleCase(loc.city)}, ${loc.state ?? ""} ${formatZip(loc.postal_code)}`.trim() : undefined,
     state: loc?.state,
     phone: loc?.telephone_number,
+    fax: loc?.fax_number,
+    directAddress: r.endpoints?.find((e) => e.endpointType === "DIRECT" && e.endpoint?.includes("@"))?.endpoint,
+    licensedIn: [...new Set((r.taxonomies ?? []).map((t) => t.state).filter((x): x is string => Boolean(x)))],
     registryUrl: `https://npiregistry.cms.hhs.gov/provider-view/${npi}`,
   };
 }

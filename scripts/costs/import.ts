@@ -101,6 +101,13 @@ async function importCms(meta: CostMeta): Promise<void> {
     } else {
       console.warn("Prescribers dataset API not found; the Specialists tab will show NPI search only.");
     }
+    const services = pickDataset(datasets, /^Medicare Physician & Other Practitioners - by Provider and Service\b/i);
+    const servicesApi = services && pickApi(services);
+    if (services && servicesApi?.accessURL) {
+      const year = Number((servicesApi.title ?? servicesApi.temporal ?? "").match(/\b20\d{2}\b/g)?.pop()) || undefined;
+      meta.partBProviders = { title: services.title ?? "", apiUrl: servicesApi.accessURL, year };
+      console.log(`Part B provider services API: ${servicesApi.accessURL} (${year ?? "year unknown"})`);
+    }
   }
   console.log(`Part D: reading ${title} from ${url}`);
   let header: string[] = [];

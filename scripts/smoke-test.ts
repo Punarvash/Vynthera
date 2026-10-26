@@ -15,6 +15,9 @@ const pages: [string, string][] = [
   ["manufacturer", "/drug/metformin?tab=manufacturer"],
   ["costs", "/drug/metformin?tab=costs"],
   ["specialists", "/drug/metformin?tab=specialists&state=TX&city=Houston"],
+  ["specialists: condition + ZIP", "/drug/metformin?condition=polycystic+ovary+syndrome&tab=specialists&zip=77030"],
+  ["specialists: clinic-given drug", "/drug/infliximab?tab=specialists&state=RI"],
+  ["specialists: nationwide", "/drug/amoxicillin?condition=strep+throat&tab=specialists"],
   ["patient", "/drug/metformin?condition=polycystic+ovary+syndrome&tab=patient"],
   ["biologic", "/drug/adalimumab?tab=evidence"],
   ["synonym check (T2DM)", "/drug/metformin?condition=T2DM&tab=evidence"],
@@ -64,7 +67,7 @@ for (const [name, path] of pages) {
   const footerStart = t.indexOf("Medical disclaimer.");
   const footerEnd = t.indexOf("pending legal review.");
   const body = footerStart >= 0 && footerEnd > footerStart ? t.slice(0, footerStart) + t.slice(footerEnd + 21) : t;
-  console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, path.includes("tab=costs") ? 12000 : 5000));
+  console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, /tab=(costs|specialists)/.test(path) ? 12000 : 5000));
 }
 if (failed) process.exitCode = 1;
 export {};

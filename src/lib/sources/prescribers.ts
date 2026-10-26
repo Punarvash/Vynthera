@@ -55,6 +55,38 @@ export function aggregatePrescribers(rows: RawPrescriberRow[]): PrescriberExperi
   return [...byNpi.values()].sort((a, b) => b.claims - a.claims);
 }
 
+/** data.cms.gov data API filter: one value as a plain filter, several as an IN condition group. */
+export function cmsFilter(q: URLSearchParams, field: string, values: string[]): void {
+  const v = values.filter(Boolean);
+  if (v.length === 0) return;
+  if (v.length === 1) {
+    q.set(`filter[${field}]`, v[0]);
+    return;
+  }
+  q.set(`filter[${field}][condition][path]`, field);
+  q.set(`filter[${field}][condition][operator]`, "IN");
+  v.forEach((x, i) => q.set(`filter[${field}][condition][value][${i + 1}]`, x));
+}
+
+/**
+ * Prescribers with the most Medicare Part D claims for any of the given drugs, optionally limited to a
+ * place and to prescriber types (CMS specialty names). Sorted by CMS, so the first rows are the most experienced.
+ */
+export async function topPrescribers(
+  apiUrl: string,
+  params: { generics: string[]; state?: string; city?: string; types?: string[] },
+  size = 100,
+): Promise<RawPrescriberRow[]> {
+  "use cache";
+  cacheLife("weeks");
+  const q = new URLSearchParams({ size: String(size), sort: "-Tot_Clms" });
+  cmsFilter(q, "Gnrc_Name", params.generics);
+  if (params.state) q.set("filter[Prscrbr_State_Abrvtn]", params.state);
+  if (params.city) q.set("filter[Prscrbr_City]", params.city.toUpperCase());
+  cmsFilter(q, "Prscrbr_Type", params.types ?? []);
+  return getJson<RawPrescriberRow[]>(SOURCE, `${apiUrl}?${q}`, { timeoutMs: 30000 });
+}
+
 export async function prescribersOf(
   apiUrl: string,
   genericName: string,

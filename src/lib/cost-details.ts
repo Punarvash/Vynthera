@@ -60,6 +60,11 @@ function loadExtraFiles(): Promise<ExtraFiles> {
   return extra;
 }
 
+/** Part B payment limits (billing codes per drug), shared with the Specialists tab. */
+export async function loadPartBLimits(): Promise<PartBFile | null> {
+  return (await loadExtraFiles()).partB;
+}
+
 export interface CoverageStats {
   plans: number;
   covered: number;

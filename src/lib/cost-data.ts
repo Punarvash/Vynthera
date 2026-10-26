@@ -144,4 +144,6 @@ export interface CostMeta {
   nadacHistory?: { years: number[]; months: number };
   /** data.cms.gov API for "Medicare Part D Prescribers - by Provider and Drug", used by the Specialists tab. */
   prescribers?: { title: string; apiUrl: string; year?: number };
+  /** data.cms.gov API for "Medicare Physician & Other Practitioners - by Provider and Service" (clinic-given drugs). */
+  partBProviders?: { title: string; apiUrl: string; year?: number };
 }

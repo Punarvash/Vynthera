@@ -24,6 +24,8 @@ export function isDemoMode(): boolean {
 function minIntervalMs(host: string): number {
   if (host === "eutils.ncbi.nlm.nih.gov") return process.env.NCBI_API_KEY ? 120 : 360;
   if (host === "api.fda.gov") return process.env.OPENFDA_API_KEY ? 60 : 260;
+  // data.cms.gov answers bursts with 429 "exceeded the rate limits".
+  if (host === "data.cms.gov") return 400;
   return 0;
 }
 

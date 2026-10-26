@@ -33,7 +33,36 @@ describe("NPI Registry", () => {
 
 describe("filters", () => {
   it("accepts only known states and specialties", () => {
-    expect(cleanFilters({ state: "tx", city: "Houston<script>", specialty: "Endocrinology" })).toEqual({ state: "TX", city: "Houstonscript", specialty: "Endocrinology" });
-    expect(cleanFilters({ state: "ZZ", specialty: "Made up" })).toEqual({ state: undefined, city: undefined, specialty: undefined });
+    expect(cleanFilters({ state: "tx", city: "Houston<script>", specialty: "Endocrinology", zip: "77070-1148" })).toEqual({ state: "TX", city: "Houstonscript", zip: "77070", specialty: "Endocrinology" });
+    expect(cleanFilters({ state: "ZZ", specialty: "Made up" })).toEqual({ state: undefined, city: undefined, zip: undefined, specialty: undefined });
+  });
+});
+
+describe("condition matching for specialists", async () => {
+  const { specialtiesFor } = await import("../condition-specialties");
+  const { cmsFilter } = await import("../sources/prescribers");
+  const { aggregateAdministrators } = await import("../sources/partb-providers");
+  it("maps conditions and abbreviations to the specialties that treat them", () => {
+    expect(specialtiesFor("polycystic ovary syndrome")).toEqual(["Obstetrics & Gynecology", "Endocrinology"]);
+    expect(specialtiesFor("PCOS")).toContain("Obstetrics & Gynecology");
+    expect(specialtiesFor("strep throat")).toEqual(["Family Practice", "Pediatric Medicine", "Otolaryngology"]);
+    expect(specialtiesFor("rheumatoid arthritis")[0]).toBe("Rheumatology");
+    expect(specialtiesFor(undefined)).toEqual([]);
+  });
+  it("builds single and IN filters for the CMS data API", () => {
+    const q = new URLSearchParams();
+    cmsFilter(q, "Gnrc_Name", ["Metformin HCl"]);
+    cmsFilter(q, "Prscrbr_Type", ["Endocrinology", "Obstetrics & Gynecology"]);
+    expect(q.get("filter[Gnrc_Name]")).toBe("Metformin HCl");
+    expect(q.get("filter[Prscrbr_Type][condition][operator]")).toBe("IN");
+    expect(q.get("filter[Prscrbr_Type][condition][value][2]")).toBe("Obstetrics & Gynecology");
+  });
+  it("combines Part B rows per clinician and skips organizations", () => {
+    const rows = [
+      { Rndrng_NPI: "1", Rndrng_Prvdr_First_Name: "Ann", Rndrng_Prvdr_Last_Org_Name: "Lee", Rndrng_Prvdr_Ent_Cd: "I", HCPCS_Cd: "J1745", Tot_Benes: "14", Tot_Srvcs: "100" },
+      { Rndrng_NPI: "1", Rndrng_Prvdr_Ent_Cd: "I", HCPCS_Cd: "Q5103", Tot_Benes: "6", Tot_Srvcs: "40" },
+      { Rndrng_NPI: "2", Rndrng_Prvdr_Last_Org_Name: "Infusion Center", Rndrng_Prvdr_Ent_Cd: "O", HCPCS_Cd: "J1745", Tot_Benes: "90" },
+    ];
+    expect(aggregateAdministrators(rows)).toMatchObject([{ npi: "1", name: "Ann Lee", patients: 20, services: 140, codes: ["J1745", "Q5103"] }]);
   });
 });

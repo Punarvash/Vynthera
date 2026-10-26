@@ -22,6 +22,27 @@ interface RawLabel {
   warnings?: string[];
   contraindications?: string[];
   pregnancy?: string[];
+  lactation?: string[];
+  nursing_mothers?: string[];
+  pediatric_use?: string[];
+  geriatric_use?: string[];
+  use_in_specific_populations?: string[];
+  drug_interactions?: string[];
+  overdosage?: string[];
+  pharmacokinetics?: string[];
+  storage_and_handling?: string[];
+  how_supplied?: string[];
+  information_for_patients?: string[];
+  spl_medguide?: string[];
+  spl_patient_package_insert?: string[];
+  purpose?: string[];
+  when_using?: string[];
+  do_not_use?: string[];
+  ask_doctor?: string[];
+  ask_doctor_or_pharmacist?: string[];
+  stop_use?: string[];
+  dosage_and_administration_table?: string[];
+  controlled_substance?: string[];
   openfda?: {
     rxcui?: string[];
     application_number?: string[];
@@ -96,6 +117,28 @@ export function toDrugLabel(raw: RawLabel): DrugLabel | null {
     warnings: section(raw.warnings_and_cautions ?? raw.warnings, /WARNINGS(\s*(AND|&)\s*PRECAUTIONS)?/),
     contraindications: section(raw.contraindications, /CONTRAINDICATIONS/),
     pregnancy: section(raw.pregnancy, /(8\.1\s*)?PREGNANCY/),
+    lactation: section(raw.lactation ?? raw.nursing_mothers, /(8\.[23]\s*)?(LACTATION|NURSING MOTHERS)/),
+    pediatricUse: section(raw.pediatric_use, /(8\.4\s*)?PEDIATRIC USE/),
+    geriatricUse: section(raw.geriatric_use, /(8\.5\s*)?GERIATRIC USE/),
+    specificPopulations: section(raw.use_in_specific_populations, /USE IN SPECIFIC POPULATIONS/),
+    interactions: section(raw.drug_interactions, /DRUG INTERACTIONS/),
+    overdosage: section(raw.overdosage, /OVERDOSAGE/),
+    pharmacokinetics: section(raw.pharmacokinetics, /(12\.3\s*)?PHARMACOKINETICS/),
+    storage: section(raw.storage_and_handling, /STORAGE AND HANDLING/),
+    howSupplied: section(raw.how_supplied, /HOW SUPPLIED(\/STORAGE AND HANDLING)?/),
+    patientCounseling: section(raw.information_for_patients, /(17\s*)?PATIENT COUNSELING INFORMATION|INFORMATION FOR PATIENTS/),
+    medGuide: raw.spl_medguide || raw.spl_patient_package_insert ? stripTags((raw.spl_medguide ?? raw.spl_patient_package_insert ?? []).join(" ")) : undefined,
+    otc: raw.purpose || raw.do_not_use || raw.stop_use
+      ? {
+          purpose: section(raw.purpose, /PURPOSES?/),
+          whenUsing: section(raw.when_using, /WHEN USING THIS PRODUCT/),
+          doNotUse: section(raw.do_not_use, /DO NOT USE/),
+          askDoctor: section(raw.ask_doctor ?? raw.ask_doctor_or_pharmacist, /ASK A DOCTOR( OR PHARMACIST)?( BEFORE USE IF YOU HAVE)?/),
+          stopUse: section(raw.stop_use, /STOP USE AND ASK A DOCTOR IF/),
+          directions: section(raw.dosage_and_administration, /DIRECTIONS/),
+        }
+      : undefined,
+    controlledSubstance: raw.controlled_substance ? stripTags(raw.controlled_substance.join(" ")).match(/\bC(I{1,3}V?|IV|V)\b/)?.[0] : undefined,
     setId: raw.set_id,
     effectiveDate: compactDateToIso(raw.effective_time),
     dailyMedUrl: `https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${encodeURIComponent(raw.set_id)}`,
