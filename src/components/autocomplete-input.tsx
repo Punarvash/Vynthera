@@ -14,6 +14,7 @@ export function AutocompleteInput({
   name,
   kinds,
   className,
+  defaultValue,
   ...input
 }: {
   name: string;
@@ -25,7 +26,7 @@ export function AutocompleteInput({
   required?: boolean;
 }) {
   const listId = useId();
-  const [value, setValue] = useState(input.defaultValue ?? "");
+  const [value, setValue] = useState(defaultValue ?? "");
   const [items, setItems] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
