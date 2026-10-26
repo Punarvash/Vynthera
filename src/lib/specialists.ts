@@ -130,13 +130,17 @@ export async function getSpecialistContext(name: string, condition: string | und
 
   const { partD, meta } = await loadCostFiles();
   const partBFile = await loadPartBLimits();
+  // The prescriber data spells some generics differently ("Metformin Hcl" vs "Metformin HCl"); use its spelling.
+  const index = await loadTopPrescribers();
+  const spelling = new Map(Object.keys(index?.drugs ?? {}).map((k) => [k.toLowerCase(), k]));
+  const asPrescribed = (names: string[]) => [...new Set(names.map((n) => spelling.get(n.toLowerCase()) ?? n))];
   const specialties = filters.specialty ? [filters.specialty] : specialtiesFor(condition);
   let conditionDrugs: string[] = [];
   if (condition) {
     // Drugs commonly used for the condition: FDA-approved for it, plus this drug.
     const approved = await attempt("openFDA", problems, [] as string[], () => drugsByIndication(condition));
     const bases = [...new Set([drug, ...approved.map((n) => baseDrugName(n))])].slice(0, 10);
-    conditionDrugs = [...new Set(bases.flatMap((b) => cmsGenericNames(partD.rows, b).slice(0, 2)))].slice(0, 8);
+    conditionDrugs = asPrescribed(bases.flatMap((b) => cmsGenericNames(partD.rows, b).slice(0, 2))).slice(0, 8);
   }
   const names = [drug, ...(label?.brandNames ?? []).map((b) => b.toLowerCase())];
   return {
@@ -145,7 +149,7 @@ export async function getSpecialistContext(name: string, condition: string | und
     filters: { ...filters, state, city },
     where: state ? [city, state].filter(Boolean).join(", ") : "the United States",
     specialties,
-    drugGenerics: cmsGenericNames(partD.rows, drug).slice(0, 4),
+    drugGenerics: asPrescribed(cmsGenericNames(partD.rows, drug)).slice(0, 4),
     conditionDrugs,
     partBCodes: partBFile ? partBForDrug(partBFile.rows, names).map((r) => r.hcpcs).slice(0, 8) : [],
     apiUrl: meta.prescribers?.apiUrl?.startsWith("https://data.cms.gov/") ? meta.prescribers.apiUrl : undefined,
