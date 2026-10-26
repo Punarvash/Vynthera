@@ -78,6 +78,8 @@ export async function trialSites(params: { drug?: string; condition?: string; st
     for (const loc of p?.contactsLocationsModule?.locations ?? []) {
       if (loc.country !== "United States") continue;
       if (wantState && loc.state !== wantState) continue;
+      // Sites that finished or withdrew from a still-recruiting study cannot take new patients.
+      if (loc.status && !/^(RECRUITING|NOT_YET_RECRUITING|ENROLLING_BY_INVITATION|AVAILABLE)$/.test(loc.status)) continue;
       const people = (loc.contacts ?? []).map((c) => ({ name: c.name ?? "", role: role(c.role), phone: c.phone, email: c.email }));
       sites.push({
         nctId,

@@ -71,22 +71,30 @@ export interface Specialist {
   administered?: Administrator;
 }
 
-export interface SpecialistBundle {
+/** What every Specialists section needs: the drug, the place and the matching rules. Quick to build. */
+export interface SpecialistContext {
   drug: string;
   condition?: string;
   filters: SpecialistFilters;
-  /** Where the search ran, e.g. "Houston, TX" or "the United States". */
+  /** Where the search runs, e.g. "Houston, TX" or "the United States". */
   where: string;
-  /** Specialties that usually treat the condition. */
+  /** Specialties that usually treat the condition (or the one chosen). */
   specialties: string[];
+  /** CMS generic names of the drug, for Part D. */
+  drugGenerics: string[];
   /** Drugs counted for "treats this condition" (CMS generic names). */
   conditionDrugs: string[];
-  conditionExperts: Specialist[];
-  drugExperts: Specialist[];
-  administrators: Specialist[];
-  trials: TrialSite[];
+  /** Part B billing codes for the drug (clinic-given drugs). */
+  partBCodes: string[];
+  apiUrl?: string;
+  partBApi?: string;
   dataYear?: number;
   partBYear?: number;
+  problems: SourceProblem[];
+}
+
+export interface SectionResult<T> {
+  items: T[];
   problems: SourceProblem[];
 }
 
@@ -103,7 +111,7 @@ function cmsGenericNames(rows: PartDRow[], base: string): string[] {
   return [...new Set(rows.filter((r) => baseDrugName(r.generic) === base).map((r) => r.generic))];
 }
 
-export async function getSpecialists(name: string, condition: string | undefined, filters: SpecialistFilters): Promise<SpecialistBundle> {
+export async function getSpecialistContext(name: string, condition: string | undefined, filters: SpecialistFilters): Promise<SpecialistContext> {
   const problems: SourceProblem[] = [];
   const label = await attempt("openFDA", problems, null, () => getLabel(name));
   const drug = label ? baseDrugName(label.genericName) : name.toLowerCase();
@@ -117,68 +125,85 @@ export async function getSpecialists(name: string, condition: string | undefined
       city ??= place.city;
     }
   }
-  const where = state ? [city, state].filter(Boolean).join(", ") : "the United States";
 
   const { partD, meta } = await loadCostFiles();
   const partBFile = await loadPartBLimits();
-  const apiUrl = meta.prescribers?.apiUrl?.startsWith("https://data.cms.gov/") ? meta.prescribers.apiUrl : undefined;
-  const partBApi = meta.partBProviders?.apiUrl?.startsWith("https://data.cms.gov/") ? meta.partBProviders.apiUrl : undefined;
-  const drugGenerics = cmsGenericNames(partD.rows, drug).slice(0, 4);
-
-  // Drugs commonly used for the condition: FDA-approved for it, plus this drug.
   const specialties = filters.specialty ? [filters.specialty] : specialtiesFor(condition);
   let conditionDrugs: string[] = [];
   if (condition) {
+    // Drugs commonly used for the condition: FDA-approved for it, plus this drug.
     const approved = await attempt("openFDA", problems, [] as string[], () => drugsByIndication(condition));
     const bases = [...new Set([drug, ...approved.map((n) => baseDrugName(n))])].slice(0, 10);
     conditionDrugs = [...new Set(bases.flatMap((b) => cmsGenericNames(partD.rows, b).slice(0, 2)))].slice(0, 8);
   }
-
-  const place = { state, city };
-  const [drugRows, conditionRows, partBRows, trials] = await Promise.all([
-    apiUrl && drugGenerics.length
-      ? attempt("CMS Part D Prescribers", problems, [] as RawPrescriberRow[], () =>
-          topPrescribers(apiUrl, { generics: drugGenerics, ...place, types: filters.specialty ? [filters.specialty] : undefined }, 100),
-        )
-      : Promise.resolve([] as RawPrescriberRow[]),
-    apiUrl && conditionDrugs.length && specialties.length
-      ? attempt("CMS Part D Prescribers", problems, [] as RawPrescriberRow[], () =>
-          topPrescribers(apiUrl, { generics: conditionDrugs, ...place, types: specialties }, 200),
-        )
-      : Promise.resolve([] as RawPrescriberRow[]),
-    (async () => {
-      const codes = partBFile ? partBForDrug(partBFile.rows, [drug, ...(label?.brandNames ?? []).map((b) => b.toLowerCase())]).map((r) => r.hcpcs) : [];
-      if (!partBApi || codes.length === 0) return [] as RawServiceRow[];
-      return attempt("CMS Physician & Other Practitioners", problems, [] as RawServiceRow[], () =>
-        topAdministrators(partBApi, { hcpcs: codes.slice(0, 8), ...place, types: filters.specialty ? [filters.specialty] : undefined }, 100),
-      );
-    })(),
-    attempt("ClinicalTrials.gov", problems, [] as TrialSite[], () => trialSites({ drug, condition, state, city })),
-  ]);
-
-  const drugExperts = aggregatePrescribers(drugRows).slice(0, MAX_SHOWN);
-  const conditionExperts = aggregatePrescribers(conditionRows).slice(0, MAX_SHOWN);
-  const administrators = aggregateAdministrators(partBRows).slice(0, MAX_SHOWN);
-
-  // Contact details from the NPI Registry, once per clinician.
-  const npis = [...new Set([...conditionExperts, ...drugExperts, ...administrators].map((x) => x.npi))].slice(0, 40);
-  const providers = new Map<string, Provider | null>();
-  const found = await inBatches(npis, 5, (npi) => attempt("NPI Registry", problems, null, () => providerByNpi(npi)));
-  npis.forEach((npi, i) => providers.set(npi, found[i]));
-
+  const names = [drug, ...(label?.brandNames ?? []).map((b) => b.toLowerCase())];
   return {
     drug,
     condition,
     filters: { ...filters, state, city },
-    where,
+    where: state ? [city, state].filter(Boolean).join(", ") : "the United States",
     specialties,
+    drugGenerics: cmsGenericNames(partD.rows, drug).slice(0, 4),
     conditionDrugs,
-    conditionExperts: conditionExperts.map((experience) => ({ experience, provider: providers.get(experience.npi) ?? null })),
-    drugExperts: drugExperts.map((experience) => ({ experience, provider: providers.get(experience.npi) ?? null })),
-    administrators: administrators.map((administered) => ({ administered, provider: providers.get(administered.npi) ?? null })),
-    trials,
+    partBCodes: partBFile ? partBForDrug(partBFile.rows, names).map((r) => r.hcpcs).slice(0, 8) : [],
+    apiUrl: meta.prescribers?.apiUrl?.startsWith("https://data.cms.gov/") ? meta.prescribers.apiUrl : undefined,
+    partBApi: meta.partBProviders?.apiUrl?.startsWith("https://data.cms.gov/") ? meta.partBProviders.apiUrl : undefined,
     dataYear: meta.prescribers?.year,
     partBYear: meta.partBProviders?.year,
-    problems: problems.filter((p, i) => problems.findIndex((q) => q.source === p.source) === i),
+    problems,
   };
+}
+
+/** Contact details from the NPI Registry for each clinician. */
+async function withProviders<T extends { npi: string }>(list: T[], problems: SourceProblem[]): Promise<{ row: T; provider: Provider | null }[]> {
+  const found = await inBatches(list, 5, (r) => attempt("NPI Registry", problems, null, () => providerByNpi(r.npi)));
+  return list.map((row, i) => ({ row, provider: found[i] }));
+}
+
+/** Dentists prescribe many antibiotics but are not who a physician refers to for a second opinion. */
+const NOT_FOR_REFERRAL = /^(dentist|oral surgery|student in an organized|clinic\/center|pharmacist)/i;
+
+/** Clinicians of the matching specialties who prescribe the condition's drugs most. */
+export async function conditionExperts(ctx: SpecialistContext): Promise<SectionResult<Specialist>> {
+  const problems: SourceProblem[] = [];
+  if (!ctx.apiUrl || ctx.conditionDrugs.length === 0 || ctx.specialties.length === 0) return { items: [], problems };
+  const { state, city } = ctx.filters;
+  const rows = await attempt("CMS Part D Prescribers", problems, [] as RawPrescriberRow[], () =>
+    topPrescribers(ctx.apiUrl as string, { generics: ctx.conditionDrugs, state, city, types: ctx.specialties }, 200),
+  );
+  const top = aggregatePrescribers(rows).slice(0, MAX_SHOWN);
+  return { items: (await withProviders(top, problems)).map(({ row, provider }) => ({ experience: row, provider })), problems };
+}
+
+/** Clinicians who prescribe the drug most (Medicare Part D). */
+export async function drugExperts(ctx: SpecialistContext): Promise<SectionResult<Specialist>> {
+  const problems: SourceProblem[] = [];
+  if (!ctx.apiUrl || ctx.drugGenerics.length === 0) return { items: [], problems };
+  const { state, city, specialty } = ctx.filters;
+  const rows = await attempt("CMS Part D Prescribers", problems, [] as RawPrescriberRow[], () =>
+    topPrescribers(ctx.apiUrl as string, { generics: ctx.drugGenerics, state, city, types: specialty ? [specialty] : undefined }, 100),
+  );
+  const top = aggregatePrescribers(rows)
+    .filter((p) => specialty || !NOT_FOR_REFERRAL.test(p.type))
+    .slice(0, MAX_SHOWN);
+  return { items: (await withProviders(top, problems)).map(({ row, provider }) => ({ experience: row, provider })), problems };
+}
+
+/** Clinicians who gave the drug in a clinic most (Medicare Part B). */
+export async function clinicAdministrators(ctx: SpecialistContext): Promise<SectionResult<Specialist>> {
+  const problems: SourceProblem[] = [];
+  if (!ctx.partBApi || ctx.partBCodes.length === 0) return { items: [], problems };
+  const { state, city, specialty } = ctx.filters;
+  const rows = await attempt("CMS Physician & Other Practitioners", problems, [] as RawServiceRow[], () =>
+    topAdministrators(ctx.partBApi as string, { hcpcs: ctx.partBCodes, state, city, types: specialty ? [specialty] : undefined }, 100),
+  );
+  const top = aggregateAdministrators(rows).slice(0, MAX_SHOWN);
+  return { items: (await withProviders(top, problems)).map(({ row, provider }) => ({ administered: row, provider })), problems };
+}
+
+export async function trialInvestigators(ctx: SpecialistContext): Promise<SectionResult<TrialSite>> {
+  const problems: SourceProblem[] = [];
+  const { state, city } = ctx.filters;
+  const items = await attempt("ClinicalTrials.gov", problems, [] as TrialSite[], () => trialSites({ drug: ctx.drug, condition: ctx.condition, state, city }));
+  return { items, problems };
 }

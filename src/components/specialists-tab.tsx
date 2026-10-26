@@ -1,8 +1,20 @@
 import { BadgeCheck, FlaskConical, Mail, MapPin, Phone, Printer, Stethoscope, Syringe, Users } from "lucide-react";
+import { Suspense } from "react";
 import { CopyTextButton } from "./copy-text";
 import { SourceProblems } from "./source-problems";
-import { Badge, Card, SectionHeading, SourceLink } from "./ui";
-import { getSpecialists, SPECIALTIES, US_STATES, type Specialist, type SpecialistFilters } from "@/lib/specialists";
+import { Badge, Card, LoadingBlock, SectionHeading, SourceLink } from "./ui";
+import {
+  clinicAdministrators,
+  conditionExperts,
+  drugExperts,
+  getSpecialistContext,
+  SPECIALTIES,
+  trialInvestigators,
+  US_STATES,
+  type Specialist,
+  type SpecialistContext,
+  type SpecialistFilters,
+} from "@/lib/specialists";
 import type { TrialSite } from "@/lib/sources/trial-sites";
 import { titleCase } from "@/lib/text";
 
@@ -228,10 +240,66 @@ function TrialList({ sites }: { sites: TrialSite[] }) {
   );
 }
 
-export async function SpecialistsTab({ drug, condition, filters }: { drug: string; condition?: string; filters: SpecialistFilters }) {
-  const b = await getSpecialists(drug, condition, filters);
-  const local = Boolean(b.filters.state);
+const LOADING = "Searching Medicare records… the first search for a place can take up to 30 seconds.";
 
+async function ConditionSection({ ctx }: { ctx: SpecialistContext }) {
+  const r = await conditionExperts(ctx);
+  return (
+    <>
+      <SourceProblems problems={r.problems} />
+      <SpecialistList
+        items={r.items}
+        what="Prescribed"
+        year={ctx.dataYear}
+        empty={
+          ctx.specialties.length
+            ? `No ${ctx.specialties.join(" or ")} clinicians with Medicare prescribing records for these drugs were found in ${ctx.where}. Try a nearby city, the whole state, or another specialty.`
+            : "Choose a specialty above to find clinicians who treat this condition."
+        }
+      />
+    </>
+  );
+}
+
+async function DrugSection({ ctx }: { ctx: SpecialistContext }) {
+  const r = await drugExperts(ctx);
+  return (
+    <>
+      <SourceProblems problems={r.problems} />
+      <SpecialistList
+        items={r.items}
+        what="Prescribed"
+        year={ctx.dataYear}
+        empty={`No Medicare prescribing records for ${ctx.drug} in ${ctx.where}. Drugs given in clinics, or rarely prescribed in Medicare, may not appear here${ctx.partBCodes.length ? "; see the clinic list below" : ""}.`}
+      />
+    </>
+  );
+}
+
+async function ClinicSection({ ctx }: { ctx: SpecialistContext }) {
+  const r = await clinicAdministrators(ctx);
+  return (
+    <>
+      <SourceProblems problems={r.problems} />
+      <SpecialistList items={r.items} what="Gave" year={ctx.partBYear} empty={`No Medicare Part B records for giving ${ctx.drug} in ${ctx.where}.`} />
+    </>
+  );
+}
+
+async function TrialSection({ ctx }: { ctx: SpecialistContext }) {
+  const r = await trialInvestigators(ctx);
+  return (
+    <>
+      <SourceProblems problems={r.problems} />
+      {r.items.length ? <TrialList sites={r.items} /> : <p className="text-muted">No recruiting study sites were found{ctx.filters.state ? ` in ${ctx.filters.state}` : ""}.</p>}
+    </>
+  );
+}
+
+export async function SpecialistsTab({ drug, condition, filters }: { drug: string; condition?: string; filters: SpecialistFilters }) {
+  const ctx = await getSpecialistContext(drug, condition, filters);
+  const local = Boolean(ctx.filters.state);
+  // Each list loads on its own, so the quick ones (trial sites) show while Medicare records are searched.
   return (
     <div className="space-y-6">
       <div>
@@ -242,10 +310,10 @@ export async function SpecialistsTab({ drug, condition, filters }: { drug: strin
         </p>
       </div>
       <Card>
-        <FilterForm drug={drug} condition={condition} filters={b.filters} />
+        <FilterForm drug={drug} condition={condition} filters={ctx.filters} />
         {!local && <p className="mt-3 text-sm text-muted">Showing the most experienced clinicians nationwide. Add a ZIP code or state to find someone nearby.</p>}
       </Card>
-      <SourceProblems problems={b.problems} />
+      <SourceProblems problems={ctx.problems} />
 
       <section aria-labelledby="sp-condition">
         <Card>
@@ -258,19 +326,12 @@ export async function SpecialistsTab({ drug, condition, filters }: { drug: strin
           {condition ? (
             <>
               <p className="mb-3 text-muted">
-                {b.specialties.length ? `${b.specialties.join(", ")} clinicians` : "Clinicians"} in {b.where} who most often prescribe drugs used for {condition}
-                {b.conditionDrugs.length ? ` (${b.conditionDrugs.slice(0, 6).join(", ")})` : ""}.
+                {ctx.specialties.length ? `${ctx.specialties.join(", ")} clinicians` : "Clinicians"} in {ctx.where} who most often prescribe drugs used for {condition}
+                {ctx.conditionDrugs.length ? ` (${ctx.conditionDrugs.slice(0, 6).join(", ")})` : ""}.
               </p>
-              <SpecialistList
-                items={b.conditionExperts}
-                what="Prescribed"
-                year={b.dataYear}
-                empty={
-                  b.specialties.length
-                    ? `No ${b.specialties.join(" or ")} clinicians with Medicare prescribing records for these drugs were found in ${b.where}. Try a nearby city, the whole state, or another specialty.`
-                    : "Choose a specialty above to find clinicians who treat this condition."
-                }
-              />
+              <Suspense fallback={<LoadingBlock label={LOADING} lines={4} />}>
+                <ConditionSection ctx={ctx} />
+              </Suspense>
             </>
           ) : (
             <p>Add the patient&apos;s condition at the top of the page to find specialists who treat it, matched by specialty and by the drugs they prescribe for it.</p>
@@ -283,30 +344,29 @@ export async function SpecialistsTab({ drug, condition, filters }: { drug: strin
           <SectionHeading>
             <span id="sp-drug" className="flex items-center gap-2">
               <Users aria-hidden className="size-5 text-gold-text" />
-              Experienced with {b.drug}
+              Experienced with {ctx.drug}
             </span>
           </SectionHeading>
-          <p className="mb-3 text-muted">Clinicians in {b.where} who prescribe {b.drug} most often to Medicare patients.</p>
-          <SpecialistList
-            items={b.drugExperts}
-            what="Prescribed"
-            year={b.dataYear}
-            empty={`No Medicare prescribing records for ${b.drug} in ${b.where}. Drugs given in clinics, or rarely prescribed in Medicare, may not appear here${b.administrators.length ? "; see the clinic list below" : ""}.`}
-          />
+          <p className="mb-3 text-muted">Clinicians in {ctx.where} who prescribe {ctx.drug} most often to Medicare patients.</p>
+          <Suspense fallback={<LoadingBlock label={LOADING} lines={4} />}>
+            <DrugSection ctx={ctx} />
+          </Suspense>
         </Card>
       </section>
 
-      {b.administrators.length > 0 && (
+      {ctx.partBCodes.length > 0 && (
         <section aria-labelledby="sp-admin">
           <Card>
             <SectionHeading>
               <span id="sp-admin" className="flex items-center gap-2">
                 <Syringe aria-hidden className="size-5 text-gold-text" />
-                Gives {b.drug} in the clinic
+                Gives {ctx.drug} in the clinic
               </span>
             </SectionHeading>
-            <p className="mb-3 text-muted">Clinicians in {b.where} who gave {b.drug} to the most Medicare patients (infusions and injections, Medicare Part B).</p>
-            <SpecialistList items={b.administrators} what="Gave" year={b.partBYear} empty="" />
+            <p className="mb-3 text-muted">Clinicians in {ctx.where} who gave {ctx.drug} to the most Medicare patients (infusions and injections, Medicare Part B).</p>
+            <Suspense fallback={<LoadingBlock label={LOADING} lines={3} />}>
+              <ClinicSection ctx={ctx} />
+            </Suspense>
           </Card>
         </section>
       )}
@@ -316,19 +376,22 @@ export async function SpecialistsTab({ drug, condition, filters }: { drug: strin
           <SectionHeading>
             <span id="sp-trials" className="flex items-center gap-2">
               <FlaskConical aria-hidden className="size-5 text-gold-text" />
-              Clinical trial sites {local ? `in ${b.filters.state}` : "in the United States"}
+              Clinical trial sites {local ? `in ${ctx.filters.state}` : "in the United States"}
             </span>
           </SectionHeading>
           <p className="mb-3 text-muted">
-            Recruiting studies of {condition ? `${b.drug} or ${condition}` : b.drug}, with the investigators and contacts each study publishes.
+            Recruiting studies of {condition ? `${ctx.drug} or ${condition}` : ctx.drug}, with the investigators and contacts each study publishes.
           </p>
-          {b.trials.length ? <TrialList sites={b.trials} /> : <p className="text-muted">No recruiting study sites were found{local ? ` in ${b.filters.state}` : ""}.</p>}
+          <Suspense fallback={<LoadingBlock label="Finding recruiting study sites…" lines={2} />}>
+            <TrialSection ctx={ctx} />
+          </Suspense>
         </Card>
       </section>
 
       <p className="text-sm text-muted">
         Prescribing counts come from CMS &ldquo;Medicare Part D Prescribers by Provider and Drug&rdquo; and clinic use from &ldquo;Medicare Physician &amp; Other
-        Practitioners&rdquo;; CMS hides counts under 11 to protect privacy. Industry payments to any clinician can be checked on{" "}
+        Practitioners&rdquo;; CMS hides counts under 11 to protect privacy. Addresses and phone numbers are each clinician&apos;s current listing in the NPI
+        Registry, which can differ from where they prescribed. Industry payments to any clinician can be checked on{" "}
         <SourceLink href="https://openpaymentsdata.cms.gov/">CMS Open Payments</SourceLink>; they play no part in this ranking.
       </p>
     </div>

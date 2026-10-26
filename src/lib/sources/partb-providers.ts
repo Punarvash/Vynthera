@@ -69,5 +69,5 @@ export async function topAdministrators(
   // Part B writes cities in title case ("Providence").
   if (params.city) q.set("filter[Rndrng_Prvdr_City]", params.city.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()));
   cmsFilter(q, "Rndrng_Prvdr_Type", params.types ?? []);
-  return getJson<RawServiceRow[]>(SOURCE, `${apiUrl}?${q}`, { timeoutMs: 30000 });
+  return getJson<RawServiceRow[]>(SOURCE, `${apiUrl}?${q}`, { timeoutMs: 45000 });
 }

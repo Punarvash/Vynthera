@@ -84,7 +84,7 @@ export async function topPrescribers(
   if (params.state) q.set("filter[Prscrbr_State_Abrvtn]", params.state);
   if (params.city) q.set("filter[Prscrbr_City]", params.city.toUpperCase());
   cmsFilter(q, "Prscrbr_Type", params.types ?? []);
-  return getJson<RawPrescriberRow[]>(SOURCE, `${apiUrl}?${q}`, { timeoutMs: 30000 });
+  return getJson<RawPrescriberRow[]>(SOURCE, `${apiUrl}?${q}`, { timeoutMs: 45000 });
 }
 
 export async function prescribersOf(
