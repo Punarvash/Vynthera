@@ -136,7 +136,7 @@ export interface CostMeta {
   importedAt: string;
   nadac?: { title: string; url: string; asOf: string; rows: number };
   partD?: { title: string; url: string; year: number; rows: number };
-  planCoverage?: { url: string; asOf: string; plans: number };
+  planCoverage?: { url: string; asOf: string; plans: number; version?: number };
   partB?: { url: string; quarter: string; rows: number };
   partBSpending?: { url: string; year: number; rows: number };
   negotiated?: { url: string; asOf: string; rows: number };

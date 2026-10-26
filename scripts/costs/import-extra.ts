@@ -8,6 +8,8 @@ import { parseNegotiated, parsePartB, parsePartBSpending, parseSharedStrings, pa
 import { CostReader, FormularyReader, PlanReader, summarizeCoverage } from "./parse-formulary.ts";
 
 const OUT_DIR = new URL("../../data/costs/", import.meta.url);
+/** Bump when the plan coverage summary logic changes, so the same CMS file is summarized again. */
+const PLAN_COVERAGE_VERSION = 2;
 type Catalog = { dataset?: { title?: string; modified?: string; distribution?: { title?: string; downloadURL?: string; format?: string; mediaType?: string }[] }[] };
 
 async function save(name: string, data: unknown): Promise<void> {
@@ -30,7 +32,7 @@ export async function importPlanCoverage(meta: CostMeta, cms: Catalog): Promise<
   const pick = (y: number) => urls.filter((u) => new RegExp(`/${y}_\\d{8}\\.zip$`).test(u)).sort((a, b) => a.slice(-12).localeCompare(b.slice(-12))).pop();
   const url = pick(year) ?? pick(year - 1);
   if (!url) throw new Error("No monthly Part D formulary file found in the CMS catalog");
-  if (meta.planCoverage?.url === url) {
+  if (meta.planCoverage?.url === url && meta.planCoverage.version === PLAN_COVERAGE_VERSION) {
     console.log(`Plan coverage: ${url} already imported`);
     return;
   }
@@ -83,7 +85,7 @@ export async function importPlanCoverage(meta: CostMeta, cms: Catalog): Promise<
   });
   if (summary.totalPlans < 1000) throw new Error(`Plan coverage looks wrong: only ${summary.totalPlans} plans`);
   await save("plan-coverage.json", summary);
-  meta.planCoverage = { url, asOf, plans: summary.totalPlans };
+  meta.planCoverage = { url, asOf, plans: summary.totalPlans, version: PLAN_COVERAGE_VERSION };
   console.log(`Plan coverage: ${summary.totalPlans} plans, ${Object.keys(summary.drugs).length} drugs, ${summary.insurers.length} insurer groups`);
 }
 
