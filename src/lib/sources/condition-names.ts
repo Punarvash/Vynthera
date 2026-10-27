@@ -1,5 +1,5 @@
 import { cacheLife } from "next/cache";
-import { getJson } from "../http";
+import { getJson, isDemoMode } from "../http";
 
 // NLM Clinical Tables conditions list: consumer name, clinical name and synonyms for ~2,400 conditions,
 // e.g. "High cholesterol" = "Hypercholesterolemia" = "Hyperlipidemia". https://clinicaltables.nlm.nih.gov/
@@ -26,6 +26,7 @@ export function namesFromResponse(query: string, data: Response): string[] {
 export async function conditionNames(condition: string): Promise<string[]> {
   "use cache";
   cacheLife("weeks");
+  if (isDemoMode()) return [];
   const url = `https://clinicaltables.nlm.nih.gov/api/conditions/v3/search?terms=${encodeURIComponent(condition)}&df=consumer_name&ef=primary_name,synonyms&maxList=5`;
   return namesFromResponse(condition, await getJson<Response>(SOURCE, url, { quiet: true }));
 }

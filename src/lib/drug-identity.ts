@@ -1,5 +1,5 @@
 import { describeError } from "./http";
-import { baseDrugName } from "./sources/openfda";
+import { baseDrugName, getLabel } from "./sources/openfda";
 import { ingredientFor, type Ingredient } from "./sources/rxnav";
 import type { SourceProblem } from "./types";
 
@@ -35,7 +35,11 @@ export async function resolveDrug(query: string, problems: SourceProblem[] = [])
   } catch (err) {
     problems.push({ source: "RxNorm", message: describeError(err) });
   }
-  // Without RxNorm, at least drop salt and form words ("metformin hydrochloride" -> "metformin").
-  const name = ingredient ? canonicalName(q, ingredient) : baseDrugName(q);
+  let name = ingredient ? canonicalName(q, ingredient) : "";
+  if (!name) {
+    // Without RxNorm: a brand's own FDA label names its ingredient; otherwise drop salt and form words.
+    const label = await getLabel(q).catch(() => null);
+    name = label && label.brandNames.some((b) => b.toLowerCase() === q.toLowerCase()) && !/ and |,/.test(label.genericName) ? baseDrugName(label.genericName) : baseDrugName(q);
+  }
   return { name, ingredient, aliases: aliasesFor(name, ingredient) };
 }

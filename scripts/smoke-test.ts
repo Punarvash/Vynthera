@@ -36,6 +36,24 @@ const pages: [string, string][] = [
   ["costs: clinic-given biologic", "/drug/infliximab?tab=costs"],
   ["costs: biologic with biosimilars", "/drug/adalimumab?tab=costs"],
   ["costs: 2027 negotiated", "/drug/semaglutide?tab=costs"],
+  ["one box: drug for condition", "/search?q=metformin+for+pcos"],
+  ["one box: drug condition", "/search?q=atorvastatin+high+cholesterol"],
+  ["approval: consumer name", "/drug/atorvastatin?condition=high+cholesterol&tab=evidence"],
+  ["approval: brand label use", "/drug/semaglutide?condition=chronic+weight+management&tab=evidence"],
+  ["approval: generic label", "/drug/sildenafil?condition=pulmonary+arterial+hypertension&tab=evidence"],
+  ["niche: pirfenidone", "/drug/pirfenidone?condition=idiopathic+pulmonary+fibrosis&tab=evidence"],
+  ["niche: dupilumab", "/drug/dupilumab?condition=atopic+dermatitis&tab=patient"],
+  ["niche: riboflavin costs", "/drug/riboflavin?tab=costs"],
+  ["mid: lamotrigine", "/drug/lamotrigine?condition=bipolar+disorder&tab=evidence"],
+  ["mid: spironolactone acne", "/drug/spironolactone?condition=acne&tab=evidence"],
+  ["specialists: authors + directory", "/drug/adalimumab?condition=rheumatoid+arthritis&tab=specialists&zip=77030"],
+];
+
+/** The same drug by generic, brand and salt name must give the same page (apart from the "you searched" note). */
+const samePage: [string, string][] = [
+  ["/drug/metformin?tab=costs", "/drug/Glucophage?tab=costs"],
+  ["/drug/metformin?tab=costs", "/drug/metformin%20hydrochloride?tab=costs"],
+  ["/drug/atorvastatin?condition=high+cholesterol&tab=evidence", "/drug/Lipitor?condition=high+cholesterol&tab=evidence"],
 ];
 
 function text(html: string): string {
@@ -81,6 +99,30 @@ for (const [name, path] of pages) {
   console.log(body.slice(body.indexOf("Skip to content") + 15).slice(0, /tab=(costs|specialists|patient)/.test(path) ? 14000 : 5000));
   // The patient view follows the physician view in the page; show it too.
   if (path.includes("tab=patient")) console.log(`--- patient view ---\n${body.slice(body.indexOf("How to take it") - 1500).slice(0, 6000)}`);
+}
+// The drug page's sentences, sorted (streamed sections can arrive in any order), without the line saying which
+// name was searched and the loading placeholders.
+async function pageText(path: string): Promise<string> {
+  const t = text(await (await fetch(base + path, { signal: AbortSignal.timeout(180_000) })).text())
+    .replace(/Showing the ingredient for “[^”]*”, so every name for this drug gives the same results\./, "")
+    .replace(/[A-Z][a-z]+ing [^.…]*…/g, "");
+  return t.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean).sort().join("\n");
+}
+for (const [a, b] of samePage) {
+  try {
+    const [ta, tb] = await Promise.all([pageText(a), pageText(b)]);
+    const same = ta === tb;
+    if (!same) failed = true;
+    console.log(`\n=== same page: ${a} vs ${b}: ${same ? "SAME" : "DIFFERENT"}`);
+    if (!same) {
+      const sa = new Set(ta.split("\n"));
+      const sb = new Set(tb.split("\n"));
+      console.log(`only in first:\n  ${[...sa].filter((x) => !sb.has(x)).slice(0, 8).join("\n  ")}\nonly in second:\n  ${[...sb].filter((x) => !sa.has(x)).slice(0, 8).join("\n  ")}`);
+    }
+  } catch (err) {
+    failed = true;
+    console.log(`\n=== same page: ${a} vs ${b}: ERROR ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 if (failed) process.exitCode = 1;
 export {};

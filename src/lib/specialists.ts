@@ -349,7 +349,8 @@ export interface PublishedAuthor {
 /** Clinicians who led recent US studies of the drug (and condition): experience beyond Medicare. */
 export async function publishedAuthors(ctx: SpecialistContext): Promise<SectionResult<PublishedAuthor>> {
   const problems: SourceProblem[] = [];
-  const since = new Date().getFullYear() - 6;
+  // Recent: about the last six years, counted from the Medicare data year (no clock reads during rendering).
+  const since = (ctx.dataYear ?? 2024) - 4;
   const rows = await attempt("PubMed", problems, [] as Authorship[], () => recentUsAuthorships(ctx.drugNames, ctx.condition, since));
   const top = groupAuthors(rows, ctx.filters.state).slice(0, 12);
   const matched = await inBatches(top, 4, async (author) => {
