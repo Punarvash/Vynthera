@@ -102,3 +102,56 @@ it("ignores quoted references to guide headings", async () => {
   expect(items(g.howToTake)).toEqual(["Take X once a day."]);
   expect(items(g.sideEffects)).toContain("inflammation of your pancreas.");
 });
+
+describe("patient view details", () => {
+  it("reads how often side effects happened from the label's trial table", async () => {
+    const { sideEffectRates } = await import("../patient-info");
+    const table = {
+      rows: [
+        ["Adverse Reaction", "Metformin (n=141) %", "Placebo (n=145) %"],
+        ["Gastrointestinal Disorders", "", ""],
+        ["Diarrhea*", "53.2", "11.7"],
+        ["Nausea/Vomiting", "25.5", "8.3"],
+        ["Headache", "5.7", "4.8"],
+        ["Rare thing", "0.4", "0.1"],
+      ],
+    };
+    expect(sideEffectRates(table)).toEqual([
+      { effect: "Diarrhea", percent: 53.2, placebo: 11.7 },
+      { effect: "Nausea/vomiting", percent: 25.5, placebo: 8.3 },
+      { effect: "Headache", percent: 5.7, placebo: 4.8 },
+    ]);
+    // Count (percent) cells.
+    expect(sideEffectRates({ rows: [["Reaction", "Drug N=200", "Placebo N=200"], ["Nausea", "40 (20.0)", "10 (5.0)"]] })).toEqual([{ effect: "Nausea", percent: 20, placebo: 5 }]);
+  });
+
+  it("puts safety first in the top things to know, at most five", async () => {
+    const { topFiveFrom } = await import("../patient-info");
+    const top = topFiveFrom({
+      mostImportant: "It can cause lactic acidosis, a rare but serious problem. More text.",
+      howToTake: ["Take it with meals."],
+      commonSideEffects: ["Diarrhea", "Nausea", "Upset stomach"],
+      call911: ["Trouble breathing or swelling (allergy).", "Feeling very weak or cold with muscle pain."],
+      avoid: ["Do not drink a lot of alcohol.", "Tell your doctor and pharmacist about every medicine you take."],
+    });
+    expect(top).toHaveLength(5);
+    expect(top[0]).toMatch(/^It can cause lactic acidosis/);
+    expect(top[2]).toBe("Common side effects: diarrhea, nausea, upset stomach. Tell your doctor if they bother you.");
+    expect(top[3]).toMatch(/^Get emergency help for: feeling very weak/);
+  });
+});
+
+describe("interactions for patients", () => {
+  it("lists the medicines a Medication Guide says to mention", async () => {
+    const { interactionItems } = await import("../patient-info");
+    const guide = "Tell your healthcare provider about all the medicines you take. Especially tell your healthcare provider if you take: • water pills (diuretics) • topiramate • insulin Know the medicines you take.";
+    expect(interactionItems(guide)).toEqual(["water pills (diuretics)", "topiramate", "insulin"]);
+  });
+
+  it("reads interaction headings from the label when there is no guide", async () => {
+    const { interactionHeadings } = await import("../patient-info");
+    const label =
+      "7.1 Carbonic Anhydrase Inhibitors Topiramate or other carbonic anhydrase inhibitors frequently cause a decrease in serum bicarbonate. 7.2 Drugs that Reduce Metformin Clearance Concomitant use of drugs that interfere with renal tubular transport systems. 7.3 Alcohol Alcohol is known to potentiate the effect of metformin.";
+    expect(interactionHeadings(label)).toEqual(["Carbonic anhydrase inhibitors", "Drugs that reduce metformin clearance", "Alcohol"]);
+  });
+});

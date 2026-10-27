@@ -1,5 +1,11 @@
 import {
   AlertTriangle,
+  BarChart3,
+  Car,
+  ClipboardList,
+  Users,
+  Star,
+  Stethoscope,
   Ban,
   Baby,
   Clock,
@@ -369,6 +375,18 @@ export async function PatientTab({ drug, condition }: { drug: string; condition?
             </span>
           </p>
         )}
+        {plain.topFive.length > 0 && (
+          <div className="mt-4 rounded-lg border-2 border-gold bg-cream/50 p-4">
+            <h4 className="mb-2 flex items-center gap-2 text-xl font-semibold">
+              <Star aria-hidden className="size-5 text-gold-text" /> Top things to know
+            </h4>
+            <ol className="list-decimal space-y-2 pl-6 text-[1.05rem] leading-relaxed">
+              {plain.topFive.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ol>
+          </div>
+        )}
         <p className="mt-3 text-sm text-muted">Use this guide to talk with your doctor or pharmacist. Follow their instructions about your dose.</p>
       </Card>
 
@@ -378,12 +396,30 @@ export async function PatientTab({ drug, condition }: { drug: string; condition?
         </Step>
       )}
 
+      {plain.beforeYouStart.length > 0 && (
+        <Step n={step()} icon={ClipboardList} title="Before you start: tell your doctor if you">
+          <List items={plain.beforeYouStart} icon={ListChecks} tone="text-navy" />
+        </Step>
+      )}
+
       <Step n={step()} icon={Pill} title="How to take it">
         <List items={plain.howToTake} icon={ListChecks} tone="text-navy" />
+        {plain.usualDose && (
+          <p className="mt-2">
+            <strong>Usual dose: </strong>
+            {plain.usualDose}
+          </p>
+        )}
         {plain.missedDose && (
           <p className="mt-2 rounded-md bg-cream/70 p-3">
             <strong>If you miss a dose: </strong>
             {plain.missedDose}
+          </p>
+        )}
+        {plain.stopping && (
+          <p className="mt-2 rounded-md bg-cream/70 p-3">
+            <strong>Stopping: </strong>
+            {plain.stopping}
           </p>
         )}
       </Step>
@@ -392,6 +428,37 @@ export async function PatientTab({ drug, condition }: { drug: string; condition?
         <Step n={step()} icon={Clock} title="What to expect">
           {plain.whatToExpect && <p>{plain.whatToExpect}</p>}
           <List items={plain.benefits} icon={ThumbsUp} tone="text-[#1d5b36]" />
+        </Step>
+      )}
+
+      {plain.seriousWarnings.length > 0 && (
+        <Step n={step()} icon={ShieldAlert} title="Serious warnings" tone="text-[#8a1c12]">
+          <p className="text-muted">These are uncommon, but you should know the signs.</p>
+          <List items={plain.seriousWarnings} icon={AlertTriangle} tone="text-[#8a1c12]" />
+        </Step>
+      )}
+
+      {plain.sideEffectRates.length > 0 && (
+        <Step n={step()} icon={BarChart3} title="How common are side effects?">
+          <p className="mb-2 text-muted">
+            Out of every 100 people taking {drugName} in the studies the FDA reviewed{plain.sideEffectRates.some((r) => r.placebo !== undefined) ? ", compared with people taking a dummy pill (placebo)" : ""}:
+          </p>
+          <ul className="space-y-2">
+            {plain.sideEffectRates.map((r) => (
+              <li key={r.effect}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium">{r.effect}</span>
+                  <span className="tabular-nums text-muted">
+                    about {Math.round(r.percent)} in 100{r.placebo !== undefined ? ` (placebo: ${Math.round(r.placebo)} in 100)` : ""}
+                  </span>
+                </div>
+                <div aria-hidden className="mt-1 h-2 rounded-full bg-line">
+                  <div className="h-2 rounded-full bg-gold" style={{ width: `${Math.max(2, Math.min(100, r.percent))}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-sm text-muted">From the clinical trial table on the FDA label. Your own chances may differ.</p>
         </Step>
       )}
 
@@ -428,7 +495,17 @@ export async function PatientTab({ drug, condition }: { drug: string; condition?
             )}
           </div>
         </div>
+        <p className="mt-3 rounded-md bg-cream/70 p-3">
+          <strong>Took too much? </strong>
+          {plain.overdose}
+        </p>
       </Step>
+
+      {plain.monitoring.length > 0 && (
+        <Step n={step()} icon={Stethoscope} title="Tests and check-ups">
+          <List items={plain.monitoring} icon={ListChecks} tone="text-navy" />
+        </Step>
+      )}
 
       {plain.whoShouldNot.length > 0 && (
         <Step n={step()} icon={Ban} title="Who should not take it">
@@ -436,13 +513,32 @@ export async function PatientTab({ drug, condition }: { drug: string; condition?
         </Step>
       )}
 
-      <Step n={step()} icon={Info} title="Medicines, foods and drinks to avoid">
+      {plain.interactions.length > 0 && (
+        <Step n={step()} icon={Pill} title="Medicines that can interact">
+          <p className="text-muted">Tell your doctor and pharmacist if you take any of these. Do not stop or start other medicines without asking.</p>
+          <List items={plain.interactions} icon={Info} tone="text-navy" />
+        </Step>
+      )}
+
+      <Step n={step()} icon={Info} title="Foods, drinks and other things to avoid">
         <List items={plain.avoid} icon={Info} tone="text-navy" />
       </Step>
+
+      {plain.dailyLife.length > 0 && (
+        <Step n={step()} icon={Car} title="Driving and daily life">
+          <List items={plain.dailyLife} icon={Info} tone="text-navy" />
+        </Step>
+      )}
 
       {plain.pregnancy && (
         <Step n={step()} icon={Baby} title="Pregnancy and breastfeeding">
           <p>{plain.pregnancy}</p>
+        </Step>
+      )}
+
+      {plain.agesNote && (
+        <Step n={step()} icon={Users} title="Children and older adults">
+          <p>{plain.agesNote}</p>
         </Step>
       )}
 

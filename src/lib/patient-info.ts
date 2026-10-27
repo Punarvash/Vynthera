@@ -7,7 +7,7 @@ import type { EvidenceBundle } from "./evidence";
 import { items, parseMedGuide, sentencesMatching, splitSideEffects } from "./medguide";
 import { firstSentences, truncate } from "./text";
 import type { MedlinePlusEntry } from "./sources/medlineplus";
-import type { GradeLevel } from "./types";
+import type { GradeLevel, LabelTable } from "./types";
 
 /** Plain-language content for the patient view and printable handout, in the order a patient reads it. */
 export interface PlainLanguage {
@@ -32,6 +32,70 @@ export interface PlainLanguage {
   storage: string[];
   drawbacks: string[];
   questions: string[];
+  /** The handful of things the patient must remember, shown first. */
+  topFive: string[];
+  /** Side effects from the label's clinical trial table, with how often they happened. */
+  sideEffectRates: SideEffectRate[];
+  /** Blood tests, check-ups or monitoring the patient may need. */
+  monitoring: string[];
+  /** The usual dose, from the label, with the reminder that the doctor sets the dose. */
+  usualDose?: string;
+  overdose: string;
+  /** Health conditions and situations to tell the doctor about before starting. */
+  beforeYouStart: string[];
+  /** The serious warnings, each in a sentence or two. */
+  seriousWarnings: string[];
+  /** Medicines and medicine groups that interact. */
+  interactions: string[];
+  /** Driving, sun, heat and other everyday cautions. */
+  dailyLife: string[];
+  /** Whether and how to stop. */
+  stopping?: string;
+  /** What the sources say about children and older adults. */
+  agesNote?: string;
+}
+
+/** Items after "Especially tell your healthcare provider if you take:" in a Medication Guide. */
+export function interactionItems(text: string | undefined, max = 10): string[] {
+  const m = text?.match(/especially tell your (?:healthcare provider|doctor|pharmacist)[^:]{0,80}:\s*(.+)/i);
+  if (!m) return [];
+  return items(m[1].split(/Know the medicines you take|Ask your (?:healthcare provider|doctor|pharmacist) (?:for a list|if you are not sure)/i)[0], max);
+}
+
+const CONNECTORS = new Set(["and", "or", "of", "with", "that", "the", "in", "on", "for", "to", "by"]);
+
+/**
+ * Subsection titles of the label's Drug Interactions section, e.g. "7.1 Carbonic Anhydrase Inhibitors Topiramate or
+ * other ..." -> "Carbonic anhydrase inhibitors". The title is the run of capitalized words before the first sentence.
+ */
+export function interactionHeadings(text: string | undefined, max = 8): string[] {
+  if (!text) return [];
+  const out: string[] = [];
+  for (const m of text.matchAll(/(?:^|\s)7\.\d+\s+(?=(.{3,160}))/g)) {
+    const words = m[1].split(/\s+/);
+    const kept: string[] = [];
+    for (const w of words) {
+      if (/^[A-Z0-9(]/.test(w) || CONNECTORS.has(w.toLowerCase())) kept.push(w);
+      else break;
+      if (kept.length > 10) break;
+    }
+    while (kept.length && CONNECTORS.has(kept[kept.length - 1].toLowerCase())) kept.pop();
+    // The last capitalized word starts the first sentence ("Topiramate or other ...").
+    if (kept.length > 1 && kept.length < words.length) kept.pop();
+    while (kept.length && CONNECTORS.has(kept[kept.length - 1].toLowerCase())) kept.pop();
+    const title = kept.join(" ").replace(/[,:;]$/, "");
+    if (title.length >= 3 && !/^(Table|Clinical|See|The|In)\b/.test(title) && !out.includes(title)) out.push(title.charAt(0) + title.slice(1).toLowerCase());
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+export interface SideEffectRate {
+  effect: string;
+  /** Percent of people taking the drug in the trials. */
+  percent: number;
+  /** Percent taking placebo (dummy pill), when the table shows it. */
+  placebo?: number;
 }
 
 const PATIENT_GRADE: Record<GradeLevel, string> = {
@@ -83,6 +147,44 @@ export function commonSideEffectsFromLabel(text: string | undefined): string[] {
     .slice(0, 8)
     .map((s) => capitalize(s));
 }
+
+function percentIn(cell: string | undefined): number | undefined {
+  if (!cell) return undefined;
+  // "53 (9.2)" is a count with its percent; "9.2" or "9.2%" is a percent.
+  const paren = cell.match(/\(\s*(\d+(?:\.\d+)?)\s*%?\s*\)/);
+  const plain = cell.match(/^\s*<?\s*(\d+(?:\.\d+)?)\s*%?\s*$/);
+  const v = Number(paren?.[1] ?? plain?.[1]);
+  return Number.isFinite(v) && v >= 0 && v <= 100 ? v : undefined;
+}
+
+/**
+ * The label's adverse reaction table as "how often" facts: the drug's column and the placebo column, most common first.
+ * Rows that are headings (body systems) or have no percentage are skipped.
+ */
+export function sideEffectRates(table: LabelTable | undefined, max = 8): SideEffectRate[] {
+  if (!table) return [];
+  const headerIdx = table.rows.findIndex((r) => r.length >= 2 && r.slice(1).some((c) => /placebo|%|\(n\s*=|n\s*=/i.test(c)));
+  if (headerIdx < 0) return [];
+  const header = table.rows[headerIdx];
+  const placeboCol = header.findIndex((c, i) => i > 0 && /placebo|vehicle/i.test(c));
+  const drugCol = header.findIndex((c, i) => i > 0 && !/placebo|vehicle|comparator|total/i.test(c));
+  if (drugCol < 0) return [];
+  const out: SideEffectRate[] = [];
+  for (const r of table.rows.slice(headerIdx + 1)) {
+    const effect = (r[0] ?? "").replace(/[*†‡§¶#]+|\s*\([a-z]\)\s*$/g, "").trim();
+    const percent = percentIn(r[drugCol]);
+    if (!effect || effect.length > 60 || /system organ|^body as a whole|disorders$|^total|^any adverse/i.test(effect) || percent === undefined || percent < 1) continue;
+    out.push({ effect: capitalize(effect.toLowerCase()), percent, placebo: placeboCol > 0 ? percentIn(r[placeboCol]) : undefined });
+  }
+  return out.sort((a, b) => b.percent - a.percent).slice(0, max);
+}
+
+/** Drop label cross-references ("(5.1)", "[see Warnings (5.2)]") from a sentence meant for patients. */
+function forPatients(s: string): string {
+  return s.replace(/\[\s*see[^\]]*\]/gi, "").replace(/\(\s*\d+(\.\d+)*\s*\)/g, "").replace(/\s+([.,;])/g, "$1").replace(/\s+/g, " ").trim();
+}
+
+const POISON_HELP = "If you take too much, call Poison Help at 1-800-222-1222 (free, open 24 hours) or go to the nearest emergency room. If someone collapses, has a seizure or cannot breathe, call 911.";
 
 /** Plain words for an FDA pharmacologic class: "Biguanide [EPC]" -> "a group of medicines called biguanides". */
 function classSentence(drug: string, epc: string[] | undefined): string | undefined {
@@ -145,6 +247,36 @@ export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[
   const storage = guide.storage ? items(guide.storage, 5) : [...STORAGE_DEFAULT];
   if (guide.storage) storage.push(STORAGE_DEFAULT[2]);
 
+  // Alcohol is a common question; say so when the label raises it.
+  const allText = `${l?.medGuide ?? ""} ${l?.warnings ?? ""} ${l?.interactions ?? ""} ${counseling ?? ""}`;
+  if (/alcohol/i.test(allText) && !avoid.some((a) => /alcohol/i.test(a))) {
+    const said = sentencesMatching(l?.medGuide ?? counseling, /alcohol/i, 1)[0];
+    avoid.unshift(said ? forPatients(said) : "The label warns about alcohol with this medicine. Ask your doctor whether, and how much, you can drink.");
+  }
+
+  const monitoring = [
+    ...sentencesMatching(`${l?.medGuide ?? ""} ${counseling ?? ""}`, /\b(blood tests?|lab(oratory)? tests?|check your|monitor|eye exam|kidney function|liver (function|tests?)|regular (visits|check))/i, 4),
+  ].map(forPatients).filter((x, i, a) => x.length < 300 && a.indexOf(x) === i);
+
+  const doseSentence = (l?.dosage?.match(/[^.]*\b(recommended|usual|starting|initial)\s+(starting\s+|adult\s+)?dos(e|age)[^.]*\./i) ?? [])[0];
+  const usualDose = doseSentence ? `${truncate(forPatients(doseSentence), 260)} Your doctor may choose a different dose for you.` : undefined;
+
+  const overdoseSaid = sentencesMatching(guide.howToTake, /too much|overdose/i, 1)[0];
+  const overdose = overdoseSaid ? `${forPatients(overdoseSaid)} ${POISON_HELP}` : POISON_HELP;
+
+  const rates = sideEffectRates(l?.adverseTable);
+
+  const guideText = l?.medGuide ?? "";
+  const beforeYouStart = items(guide.beforeTaking?.split(/Tell your (?:healthcare provider|doctor) about all (?:of )?the medicines you take|Especially tell/i)[0], 12);
+  const seriousWarnings = items(guide.important, 8);
+  const fromGuide = interactionItems(guideText);
+  const interactions = fromGuide.length
+    ? fromGuide
+    : interactionHeadings(l?.interactions).map((h) => `${h} (ask your doctor or pharmacist if you take any of these)`);
+  const dailyLife = sentencesMatching(guideText || counseling, /\b(drive|driving|operate machinery|heavy machinery|sunlight|sunburn|tanning|dizz|drows|overheat|heat stroke|dehydrat)/i, 3).map(forPatients);
+  const stopping = sentencesMatching(`${guideText} ${counseling ?? ""}`, /\b(do not stop|don't stop|stop taking|suddenly)/i, 2).map(forPatients).join(" ");
+  const agesNote = sentencesMatching(guideText, /\b(children|child|under (the age of )?\d+ years|older adults|65 years)/i, 2).map(forPatients).join(" ");
+
   const drawbacks = ["Cost depends on your insurance. Ask your pharmacist about generic versions and discount programs."];
   if (e.condition && isOffLabel(e)) drawbacks.push("Insurance may not cover off-label use without a letter from your doctor.");
 
@@ -165,7 +297,31 @@ export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[
     storage,
     drawbacks,
     questions: e.condition && isOffLabel(e) ? [...STANDARD_QUESTIONS, "Will my insurance cover this off-label use?"] : STANDARD_QUESTIONS,
+    topFive: topFiveFrom({ mostImportant, howToTake, commonSideEffects: common, call911, avoid, missedDose: missed || undefined }),
+    sideEffectRates: rates,
+    monitoring,
+    usualDose,
+    overdose,
+    beforeYouStart,
+    seriousWarnings,
+    interactions,
+    dailyLife,
+    stopping: stopping || undefined,
+    agesNote: agesNote || undefined,
   };
+}
+
+/** The handful of points a patient must remember: safety first, then how to take it, then what to watch for. */
+export function topFiveFrom(p: { mostImportant?: string; howToTake: string[]; commonSideEffects: string[]; call911: string[]; avoid: string[]; missedDose?: string }): string[] {
+  const out: string[] = [];
+  if (p.mostImportant) out.push(truncate(firstSentences(p.mostImportant, 1), 220));
+  if (p.howToTake[0]) out.push(truncate(p.howToTake[0], 200));
+  if (p.commonSideEffects.length) out.push(`Common side effects: ${p.commonSideEffects.slice(0, 4).join(", ").toLowerCase()}. Tell your doctor if they bother you.`);
+  const emergency = p.call911.find((c) => !/allerg/i.test(c)) ?? p.call911[0];
+  if (emergency) out.push(`Get emergency help for: ${truncate(emergency.replace(/\.$/, ""), 180).toLowerCase()}.`);
+  const avoid = p.avoid.find((a) => !/^Tell your doctor and pharmacist about every medicine/.test(a));
+  out.push(avoid ? truncate(avoid, 200) : "Tell your doctor and pharmacist about every medicine, vitamin and supplement you take.");
+  return out.slice(0, 5);
 }
 
 const PlainSchema = z.object({
@@ -185,6 +341,14 @@ const PlainSchema = z.object({
   storage: z.array(z.string()).describe("How to store it and safely throw it away."),
   drawbacks: z.array(z.string()).describe("Practical drawbacks: monitoring, cost, interactions, time to work."),
   questions: z.array(z.string()).describe("Four or five questions the patient could ask their doctor."),
+  topFive: z.array(z.string()).describe("The five most important things to remember, one short sentence each, safety first."),
+  monitoring: z.array(z.string()).describe("Blood tests, check-ups or monitoring the sources say are needed, in everyday words. Empty if none."),
+  beforeYouStart: z.array(z.string()).describe("Health conditions and situations to tell the doctor about before starting, from the sources."),
+  seriousWarnings: z.array(z.string()).describe("Each serious warning in one or two plain sentences: what can happen and the signs to watch for."),
+  interactions: z.array(z.string()).describe("Medicines, supplements or groups of medicines that interact, in everyday words, with what to do."),
+  dailyLife: z.array(z.string()).describe("Driving, alcohol, sun, heat and other everyday cautions the sources mention. Empty if none."),
+  stopping: z.string().describe("Whether it is safe to stop suddenly and what to do instead, only if the sources say. Empty otherwise."),
+  agesNote: z.string().describe("What the sources say about children and older adults. Empty if nothing."),
 });
 
 const PLAIN_SYSTEM = `You write patient handouts about prescription medicines in plain language at a 6th to 8th grade reading level.
@@ -247,6 +411,17 @@ export async function plainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry
     const keep = (s: string) => (s.trim() ? s.trim() : undefined);
     return {
       ...out,
+      topFive: out.topFive.length ? out.topFive.slice(0, 5) : basic.topFive,
+      sideEffectRates: basic.sideEffectRates,
+      monitoring: out.monitoring.length ? out.monitoring : basic.monitoring,
+      usualDose: basic.usualDose,
+      overdose: basic.overdose,
+      beforeYouStart: out.beforeYouStart.length ? out.beforeYouStart : basic.beforeYouStart,
+      seriousWarnings: out.seriousWarnings.length ? out.seriousWarnings : basic.seriousWarnings,
+      interactions: out.interactions.length ? out.interactions : basic.interactions,
+      dailyLife: out.dailyLife.length ? out.dailyLife : basic.dailyLife,
+      stopping: keep(out.stopping) ?? basic.stopping,
+      agesNote: keep(out.agesNote) ?? basic.agesNote,
       mode: "ai",
       mostImportant: keep(out.mostImportant),
       missedDose: keep(out.missedDose),
