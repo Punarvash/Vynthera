@@ -16,7 +16,6 @@ import { cleanFilters } from "@/lib/specialists";
 import { Card, LoadingBlock, Skeleton, SourceLink } from "@/components/ui";
 import { cleanCondition, cleanDrugName } from "@/lib/evidence";
 import { loadOverview } from "@/lib/loaders";
-import { resolveDrug } from "@/lib/drug-identity";
 import { parseTab } from "@/lib/tabs";
 import { titleCase } from "@/lib/text";
 
@@ -24,17 +23,12 @@ export const metadata: Metadata = { title: "Drug" };
 
 type Props = PageProps<"/drug/[name]">;
 
-async function DrugHeading({ drug, searched }: { drug: string; searched: string }) {
+async function DrugHeading({ drug }: { drug: string }) {
   const { label, problems } = await loadOverview(drug);
   return (
     <div className="space-y-2">
       <SourceProblems problems={problems} />
       <h1 className="font-serif text-4xl font-semibold">{titleCase(label?.genericName ?? drug)}</h1>
-      {searched.toLowerCase() !== drug && (
-        <p className="text-[0.95rem] text-muted">
-          Showing the ingredient for &ldquo;{searched}&rdquo;, so every name for this drug gives the same results.
-        </p>
-      )}
       {label ? (
         <p className="text-muted">
           {label.brandNames.length > 0 && <>Brand: {label.brandNames.slice(0, 4).join(", ")} · </>}
@@ -87,9 +81,7 @@ function ConditionForm({ drug, condition, tab }: { drug: string; condition?: str
 
 async function DrugContent({ params, searchParams }: Props) {
   const [{ name }, sp] = await Promise.all([params, searchParams]);
-  // Brand, salt or generic: every name for the drug opens the same ingredient, so every route gives the same results.
-  const identity = await resolveDrug(cleanDrugName(name));
-  const drug = identity.name;
+  const drug = cleanDrugName(name);
   const condition = cleanCondition(sp.condition);
   const tab = parseTab(sp.tab);
   const props = { drug, condition };
@@ -97,7 +89,7 @@ async function DrugContent({ params, searchParams }: Props) {
   return (
     <div className="space-y-6">
       <Suspense fallback={<Skeleton className="h-16 w-2/3" />}>
-        <DrugHeading drug={drug} searched={cleanDrugName(name)} />
+        <DrugHeading drug={drug} />
       </Suspense>
       <ConditionForm drug={drug} condition={condition} tab={tab} />
       <Suspense fallback={<Card><LoadingBlock label="Loading key takeaways…" lines={4} /></Card>}>
@@ -152,11 +144,18 @@ async function DrugContent({ params, searchParams }: Props) {
   );
 }
 
+async function HeaderSearch({ searchParams }: { searchParams: Props["searchParams"] }) {
+  const sp = await searchParams;
+  return <SearchForm size="compact" defaultCondition={cleanCondition(sp.condition) ?? ""} />;
+}
+
 export default function DrugPage(props: Props) {
   return (
     <>
       <SiteHeader>
-        <SearchForm size="compact" />
+        <Suspense fallback={<SearchForm size="compact" />}>
+          <HeaderSearch searchParams={props.searchParams} />
+        </Suspense>
       </SiteHeader>
       <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
         <Suspense fallback={<LoadingBlock label="Loading drug information…" lines={8} />}>

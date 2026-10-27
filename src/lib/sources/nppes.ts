@@ -78,26 +78,13 @@ export async function providerByNpi(npi: string): Promise<Provider | null> {
   return data.results?.[0] ? toProvider(data.results[0]) : null;
 }
 
-/**
- * Individual clinicians (NPI-1) by specialty and location: everyone licensed and enumerated, whatever insurance
- * they take. `skip` pages through results (the registry returns at most 200 at a time and 1,200 in all).
- */
-export async function searchProviders(params: { specialty?: string; state: string; city?: string; limit?: number; skip?: number }): Promise<Provider[]> {
+/** Individual clinicians (NPI-1) by specialty and location, when no prescribing data is available. */
+export async function searchProviders(params: { specialty?: string; state: string; city?: string }): Promise<Provider[]> {
   "use cache";
   cacheLife("days");
-  const q = new URLSearchParams({ version: "2.1", enumeration_type: "NPI-1", state: params.state, limit: String(Math.min(200, params.limit ?? 50)) });
-  if (params.skip) q.set("skip", String(Math.min(1000, params.skip)));
+  const q = new URLSearchParams({ version: "2.1", enumeration_type: "NPI-1", state: params.state, limit: "50" });
   if (params.specialty) q.set("taxonomy_description", params.specialty);
   if (params.city) q.set("city", params.city);
-  const data = await getJson<{ results?: RawResult[] }>(SOURCE, `${BASE}?${q}`);
-  return (data.results ?? []).map(toProvider).filter((p): p is Provider => p !== null);
-}
-
-/** Clinicians with this name in a state; used to find a published author's contact details. */
-export async function providersByName(params: { first: string; last: string; state: string }): Promise<Provider[]> {
-  "use cache";
-  cacheLife("weeks");
-  const q = new URLSearchParams({ version: "2.1", enumeration_type: "NPI-1", first_name: params.first, last_name: params.last, state: params.state, limit: "5" });
   const data = await getJson<{ results?: RawResult[] }>(SOURCE, `${BASE}?${q}`);
   return (data.results ?? []).map(toProvider).filter((p): p is Provider => p !== null);
 }

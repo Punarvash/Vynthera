@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useEffect, useId, useRef, useState } from "react";
 import type { Suggestion, SuggestionKind } from "@/lib/suggest";
 
-const KIND_LABEL: Record<SuggestionKind, string> = { drug: "Drug", condition: "Condition", class: "Drug class", pair: "Drug + condition" };
+const KIND_LABEL: Record<SuggestionKind, string> = { drug: "Drug", condition: "Condition", class: "Drug class" };
 
 /**
  * A text input with typo-tolerant suggestions (ARIA combobox). Choosing a suggestion fills the box and

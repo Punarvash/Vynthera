@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aggregatePrescribers } from "../sources/prescribers";
 import { toProvider } from "../sources/nppes";
-import { cleanFilters, fromTopIndex, NOT_FOR_REFERRAL, nppesTaxonomy, typesForDrug } from "../specialists";
-import { groupAuthors, shortAffiliation } from "../research-authors";
-import { parseAuthorships, type Authorship } from "../sources/pubmed";
-import { stateIn } from "../sources/trial-sites";
+import { cleanFilters, fromTopIndex, NOT_FOR_REFERRAL, nppesTaxonomy } from "../specialists";
 import type { TopPrescribersFile } from "../cost-data";
 import { TopPrescribers } from "../../../scripts/costs/parse-extra";
 
@@ -118,53 +115,5 @@ describe("referral filter", () => {
   it("leaves out dentists and surgeons who prescribe around procedures", () => {
     for (const t of ["Dentist", "Maxillofacial Surgery", "Oral & Maxillofacial Surgery", "Orthopedic Surgery", "Micrographic Dermatologic Surgery"]) expect(NOT_FOR_REFERRAL.test(t)).toBe(true);
     for (const t of ["Family Practice", "Infectious Disease", "Otolaryngology", "Nurse Practitioner"]) expect(NOT_FOR_REFERRAL.test(t)).toBe(false);
-  });
-});
-
-describe("published authors", () => {
-  const row = (over: Partial<Authorship>): Authorship => ({ pmid: "1", year: "2024", title: "T", last: "Doe", fore: "Jane Q", initials: "JQ", affiliation: "Department of Endocrinology, Baylor College of Medicine, Houston, TX 77030, USA.", position: "first", ...over });
-
-  it("groups a person's lead and senior authorships, US affiliations only, filtered by state", () => {
-    const rows = [
-      row({}),
-      row({ pmid: "2", position: "last" }),
-      row({ pmid: "3", last: "Smith", fore: "Ann", affiliation: "Mayo Clinic, Rochester, Minnesota, United States." }),
-      row({ pmid: "4", last: "Muller", fore: "Hans", affiliation: "Charite, Berlin, Germany." }),
-    ];
-    const all = groupAuthors(rows);
-    expect(all.map((a) => [a.name, a.papers.length, a.state])).toEqual([["Jane Q Doe", 2, "TX"], ["Ann Smith", 1, "MN"]]);
-    expect(groupAuthors(rows, "MN").map((a) => a.last)).toEqual(["Smith"]);
-  });
-
-  it("shortens affiliations to the institution and place", () => {
-    expect(shortAffiliation("Department of Endocrinology, Baylor College of Medicine, Houston, TX 77030, USA. jdoe@bcm.edu")).toBe("Baylor College of Medicine, Houston, TX");
-  });
-
-  it("reads US states from addresses", () => {
-    expect(stateIn("Houston, TX 77030, USA")).toBe("TX");
-    expect(stateIn("Morgantown, West Virginia, USA")).toBe("WV");
-    expect(stateIn("Washington University School of Medicine, St. Louis, Missouri")).toBe("MO");
-    expect(stateIn("Paris, France")).toBeUndefined();
-  });
-
-  it("parses first and last authors with affiliations from PubMed XML", () => {
-    const xml = `<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>123</PMID><Article><Journal><JournalIssue><PubDate><Year>2025</Year></PubDate></JournalIssue></Journal><ArticleTitle>Metformin trial</ArticleTitle><AuthorList>
-      <Author><LastName>Doe</LastName><ForeName>Jane</ForeName><Initials>J</Initials><AffiliationInfo><Affiliation>Baylor College of Medicine, Houston, TX, USA.</Affiliation></AffiliationInfo></Author>
-      <Author><LastName>Mid</LastName><ForeName>Al</ForeName><Initials>A</Initials></Author>
-      <Author><LastName>Roe</LastName><ForeName>Rick</ForeName><Initials>R</Initials><AffiliationInfo><Affiliation>UCSF, San Francisco, CA, USA.</Affiliation></AffiliationInfo></Author>
-    </AuthorList></Article></MedlineCitation></PubmedArticle></PubmedArticleSet>`;
-    expect(parseAuthorships(xml).map((a) => [a.last, a.position, a.year])).toEqual([["Doe", "first", "2025"], ["Roe", "last", "2025"]]);
-  });
-});
-
-describe("directory specialties for a drug alone", () => {
-  it("lists the specialists who prescribe it most, primary care last", () => {
-    const file = {
-      year: 2024,
-      sourceUrl: "x",
-      people: {},
-      drugs: { Adalimumab: { all: [], types: { Rheumatology: [["1", 900, 0]], Dermatology: [["2", 500, 0]], "Internal Medicine": [["3", 950, 0]], Gastroenterology: [["4", 300, 0]] } } },
-    } as unknown as TopPrescribersFile;
-    expect(typesForDrug(file, ["Adalimumab"])).toEqual(["Rheumatology", "Dermatology", "Gastroenterology"]);
   });
 });

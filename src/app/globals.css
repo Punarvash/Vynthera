@@ -80,19 +80,3 @@ details > summary {
     width: 100%;
   }
 }
-
-/* "Print" on one section (the patient cost sheet) prints only that section. */
-@media print {
-  html.print-section body * {
-    visibility: hidden;
-  }
-  html.print-section .print-target,
-  html.print-section .print-target * {
-    visibility: visible;
-  }
-  html.print-section .print-target {
-    position: absolute;
-    inset: 0 auto auto 0;
-    width: 100%;
-  }
-}

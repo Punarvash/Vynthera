@@ -1,7 +1,6 @@
 import { coveringCategory } from "./indication-categories";
 import { normalizeForMatch } from "./text";
-import { titleCase } from "./text";
-import type { DrugLabel, LabelRef, LabelStatus } from "./types";
+import type { DrugLabel, LabelStatus } from "./types";
 
 const STOPWORDS = new Set(["the", "and", "of", "in", "with", "for", "to", "a", "an", "or", "disease", "disorder", "syndrome"]);
 
@@ -39,63 +38,24 @@ export function assessLabelStatus(label: DrugLabel | null, condition: string | u
   return { kind: "off-label" };
 }
 
-const STRENGTH: Record<LabelStatus["kind"], number> = { approved: 0, "likely-approved": 1, limitation: 2, "off-label": 3, "no-condition": 4, "no-label": 5 };
-
-function isBrandApplication(l: DrugLabel): boolean {
-  return l.applicationNumbers.some((n) => /^(NDA|BLA)/.test(n));
-}
-
-/** Brand (NDA/BLA) labels first: generic labels may leave out uses still under patent or exclusivity ("carved out"). */
-export function labelsByAuthority(labels: DrugLabel[]): DrugLabel[] {
-  return [...labels].sort((a, b) => Number(isBrandApplication(b)) - Number(isBrandApplication(a)) || b.indications.length - a.indications.length);
-}
-
-export function labelRef(l: DrugLabel): LabelRef {
-  const name = l.brandNames[0] ?? titleCase(l.genericName);
-  return { title: name, manufacturer: l.manufacturer, url: l.dailyMedUrl };
-}
-
-/**
- * Approval status across all of a drug's labels (brand, generics, other strengths and forms): the condition is
- * FDA-approved if any label's indications include it. Checking one label misses uses a generic label carves out.
- */
-export function assessAcrossLabels(labels: DrugLabel[], condition: string | undefined, synonyms: string[] = []): LabelStatus {
-  if (labels.length === 0) return { kind: "no-label" };
-  const seen = new Set<string>();
-  const distinct = labelsByAuthority(labels).filter((l) => (seen.has(l.indications) ? false : (seen.add(l.indications), true)));
-  let best: { status: LabelStatus; label: DrugLabel } | null = null;
-  for (const l of distinct) {
-    const status = assessLabelStatus(l, condition, synonyms);
-    if (!best || STRENGTH[status.kind] < STRENGTH[best.status.kind]) best = { status, label: l };
-    if (status.kind === "approved") break;
-  }
-  if (!best) return { kind: "no-label" };
-  const decided = best.status.kind === "approved" || best.status.kind === "likely-approved" || best.status.kind === "limitation";
-  return { ...best.status, on: decided ? labelRef(best.label) : undefined, checked: distinct.length };
-}
-
-function onLabel(status: LabelStatus, drug: string): string {
-  return status.on ? `the ${status.on.title} label (${status.on.manufacturer})` : `the ${drug} label`;
-}
-
 export function labelStatusText(status: LabelStatus, drug: string, condition?: string): string {
   switch (status.kind) {
     case "approved":
       return status.matched.toLowerCase() === condition?.toLowerCase()
-        ? `FDA-approved: "${condition}" appears in the indications on ${onLabel(status, drug)}.`
-        : `FDA-approved: the indications on ${onLabel(status, drug)} include "${status.matched}", another name for ${condition}.`;
+        ? `FDA-approved: "${condition}" appears in the indications on the ${drug} label.`
+        : `FDA-approved: the ${drug} label indications include "${status.matched}", a synonym of ${condition}.`;
     case "likely-approved":
       if (status.covers) {
-        return `FDA-approved for ${status.covers}: the indications on ${onLabel(status, drug)} cover "${status.matched}", which includes ${condition}. Check the label for the organisms and patients it covers.`;
+        return `FDA-approved for ${status.covers}: the ${drug} label indications cover "${status.matched}", which includes ${condition}. Check the label for the organisms and patients it covers.`;
       }
       if (status.byAi) {
-        return `Probably FDA-approved: the indications on ${onLabel(status, drug)} say "${status.matched}", which appears to cover ${condition}. Confirm on the label.`;
+        return `Probably FDA-approved: the ${drug} label indications say "${status.matched}", which appears to cover ${condition}. Confirm on the label.`;
       }
-      return `Probably FDA-approved: the indications on ${onLabel(status, drug)} mention ${status.matched}. Confirm the exact wording on the label.`;
+      return `Probably FDA-approved: the label indications mention ${status.matched}. Confirm the exact wording on the label.`;
     case "limitation":
-      return `Not approved: ${onLabel(status, drug)} lists "${condition}" under Limitations of Use.`;
+      return `Not approved: the label lists "${condition}" under Limitations of Use.`;
     case "off-label":
-      return `Off-label: "${condition}" is not among the FDA-approved uses on ${status.checked && status.checked > 1 ? `any of the ${status.checked} ${drug} labels checked (brand and generic)` : `the ${drug} label`}, including under other names for the condition. Check the label's indications if your patient's diagnosis is worded differently.`;
+      return `Off-label: "${condition}" is not among the FDA-approved uses listed on the ${drug} label. If the label uses different wording for this condition, it may still be approved, so check the label's indications.`;
     case "no-condition":
       return "Add the patient's condition to check off-label status.";
     case "no-label":

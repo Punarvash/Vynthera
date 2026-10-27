@@ -6,8 +6,7 @@ import { loadCostFiles } from "./costs";
 import { getJson, isDemoMode } from "./http";
 import { baseDrugName } from "./sources/openfda";
 
-/** "pair" is a drug plus a condition typed together ("metformin pcos" -> "Metformin for Polycystic ovary syndrome"). */
-export type SuggestionKind = "drug" | "condition" | "class" | "pair";
+export type SuggestionKind = "drug" | "condition" | "class";
 
 export interface Suggestion {
   label: string;
@@ -196,45 +195,9 @@ async function clinicalTablesConditions(q: string): Promise<string[]> {
  * Suggestions for what the user is typing, typo-tolerant. The local index answers instantly;
  * RxNorm and NLM Clinical Tables add drugs and conditions it does not know.
  */
-const FORM_OR_SALT = /^(er|xr|sr|dr|xl|cr|la|odt|hcl|hfa|sulfate|sodium|potassium|calcium|tablets?|tabs?|caps?|capsules?|mg|mcg|inhaler|injection|injectable|pen|cream|gel|solution|suspension|oral|topical|extended|delayed|\d)/;
-
-/** While typing "metformin pc…": the drug typed so far, paired with conditions that match the rest. */
-async function pairSuggestions(raw: string, limit: number): Promise<Suggestion[]> {
-  const words = raw.trim().split(/\s+/);
-  for (let i = words.length - 1; i >= 1; i--) {
-    const rest = words.slice(i).join(" ").replace(/^(for|in|with|to treat|treating)\s+/i, "");
-    const r = normalize(rest);
-    // The rest must look like a condition, not a strength or form ("metformin er", "albuterol sulfate").
-    if (r.length < 3 || /^(for|in|with|to|treat|treating)$/.test(r) || FORM_OR_SALT.test(r)) continue;
-    const drug = await namedEntry(words.slice(0, i).join(" "), "drug");
-    if (!drug) continue;
-    const all = await loadIndex();
-    const conditions = [
-      ...abbreviationSynonyms(rest).slice(0, 1).map((c) => titleCase(c)),
-      ...all
-        .filter((e) => e.kind === "condition")
-        .map((e) => ({ e, s: matchScore(r, e) }))
-        .filter((x) => x.s >= 75)
-        .sort((a, b) => b.s - a.s || b.e.weight - a.e.weight || a.e.norm.length - b.e.norm.length)
-        .map((x) => x.e.label),
-    ];
-    const unique = [...new Set(conditions)].slice(0, limit);
-    if (unique.length) return unique.map((c) => ({ label: `${drug} for ${c}`, kind: "pair" as const }));
-  }
-  return [];
-}
-
 export async function suggest(raw: string, kinds: SuggestionKind[] = ["drug", "condition", "class"], limit = 8): Promise<Suggestion[]> {
   const q = normalize(raw);
   if (q.length < 2) return [];
-  if (kinds.includes("drug") && kinds.includes("condition") && q.includes(" ")) {
-    const pairs = await pairSuggestions(raw, 4);
-    if (pairs.length) {
-      // The pairs first, then ordinary matches for the whole text in case it is one long name.
-      const rest = await suggest(raw, kinds.filter((k) => k !== "drug" && k !== "pair"), limit - pairs.length);
-      return [...pairs, ...rest].slice(0, limit);
-    }
-  }
   const all = await loadIndex();
   const scored = all
     .filter((e) => kinds.includes(e.kind))
@@ -278,54 +241,4 @@ export async function didYouMean(raw: string): Promise<Suggestion | null> {
   const [best] = await suggest(raw, ["drug", "condition", "class"], 3);
   if (!best || normalize(best.label) === q) return null;
   return best;
-}
-
-/** The index entry a whole phrase names, allowing a small typo; null when nothing is close enough. */
-async function namedEntry(text: string, kind: SuggestionKind): Promise<string | null> {
-  const q = normalize(text);
-  if (q.length < 2) return null;
-  if (kind === "condition") {
-    const full = abbreviationSynonyms(text)[0];
-    if (full) return titleCase(full);
-  }
-  const typos = q.length >= 8 ? 2 : q.length >= 5 ? 1 : 0;
-  let best: { label: string; d: number; weight: number } | null = null;
-  for (const e of await loadIndex()) {
-    if (e.kind !== kind) continue;
-    // A condition named by its start ("polycystic ovary") also counts; drugs must be named in full.
-    const d = e.norm === q ? 0 : kind === "condition" && q.length >= 8 && e.norm.startsWith(q) ? 0.5 : editDistance(q, e.norm, typos);
-    if (d <= typos && (!best || d < best.d || (d === best.d && e.weight > best.weight))) best = { label: e.label, d, weight: e.weight };
-  }
-  return best?.label ?? null;
-}
-
-export interface QueryParts {
-  drug?: string;
-  condition?: string;
-}
-
-/**
- * One search box takes a drug, a condition, or both: "metformin pcos", "metformin for polycystic ovary syndrome"
- * and "PCOS metformin" all give drug metformin and condition polycystic ovary syndrome. Empty when the query
- * is not a drug-plus-condition pair.
- */
-export async function splitQuery(raw: string): Promise<QueryParts> {
-  const text = raw.trim();
-  // A name that is itself one drug or condition ("insulin resistance") is not a pair.
-  const q = normalize(text);
-  if ((await loadIndex()).some((e) => e.norm === q)) return {};
-  const joined = text.match(/^(.+?)\s+(?:for|in|to treat|treating|with)\s+(.+)$/i);
-  const pairs: [string, string][] = [];
-  if (joined) pairs.push([joined[1], joined[2]], [joined[2], joined[1]]);
-  const words = text.split(/\s+/);
-  for (let i = 1; i < words.length && words.length <= 8; i++) {
-    const a = words.slice(0, i).join(" ");
-    const b = words.slice(i).join(" ");
-    pairs.push([a, b], [b, a]);
-  }
-  for (const [d, c] of pairs) {
-    const [drug, condition] = await Promise.all([namedEntry(d, "drug"), namedEntry(c, "condition")]);
-    if (drug && condition) return { drug, condition };
-  }
-  return {};
 }

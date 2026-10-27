@@ -1,13 +1,11 @@
 import { describeError } from "./http";
 import { classifyFunding, fundingFromStatement } from "./funding";
 import { assessGrade, countsFromStudies, uncertaintyStatement, verdict } from "./grade";
-import { assessAcrossLabels, labelRef, labelsByAuthority } from "./label-status";
-import { conditionNames } from "./sources/condition-names";
-import { ingredientFor } from "./sources/rxnav";
+import { assessLabelStatus } from "./label-status";
 import { compareDesign } from "./design";
 import { assessDirections, indicationQuote } from "./ai-assess";
 import { isAboutDrug } from "./study-features";
-import { baseDrugName, getLabel, getLabels, onlyThisDrug } from "./sources/openfda";
+import { baseDrugName, getLabel } from "./sources/openfda";
 import {
   buildQuery,
   CASE_TYPES,
@@ -56,8 +54,7 @@ export function drugTerms(name: string, label: DrugLabel | null): string[] {
   const terms = [name, label && baseDrugName(label.genericName), label?.genericName, ...(label?.brandNames ?? [])].filter(
     (t): t is string => Boolean(t),
   );
-  // Up to 8 names: generic, salt form and brands, so studies that only use a brand name are found too.
-  return [...new Set(terms.map((t) => t.toLowerCase()))].slice(0, 8);
+  return [...new Set(terms.map((t) => t.toLowerCase()))].slice(0, 5);
 }
 
 export interface DrugOverview {
@@ -212,7 +209,7 @@ export async function getEvidence(name: string, condition: string | undefined): 
   const drug = label ? baseDrugName(label.genericName) : name.toLowerCase();
   const terms = drugTerms(drug, label);
 
-  const [lit, counts, trialSearch, profile, meshEntryTerms, cochrane, ownLabels, consumerNames] = await Promise.all([
+  const [lit, counts, trialSearch, profile, meshEntryTerms, cochrane] = await Promise.all([
     literature(drug, condition, EVIDENCE_TYPES, PAGE_SIZE, problems, label, { therapy: true }),
     designCounts(terms, condition, problems),
     attempt("ClinicalTrials.gov", problems, { total: 0, trials: [] as Trial[] }, () => searchTrials(drug, condition)),
@@ -220,13 +217,6 @@ export async function getEvidence(name: string, condition: string | undefined): 
     condition ? attempt("PubMed", problems, [] as string[], () => meshSynonyms(condition)) : Promise.resolve([] as string[]),
     // Cochrane reviews of this use, so the most rigorous graded evidence is never missed by relevance ranking.
     condition ? attempt("PubMed", problems, [] as Article[], () => cochraneReviews(terms, condition)) : Promise.resolve([] as Article[]),
-    // Every label for the drug (brand and generics), for the approval check.
-    attempt("openFDA", problems, [] as DrugLabel[], async () => {
-      const [labels, ingredient] = await Promise.all([getLabels(drug), ingredientFor(drug).catch(() => null)]);
-      return onlyThisDrug(labels, drug, ingredient);
-    }),
-    // Consumer and clinical names ("high cholesterol" = "hypercholesterolemia"), so label wording still matches.
-    condition ? conditionNames(condition).catch(() => [] as string[]) : Promise.resolve([] as string[]),
   ]);
 
   const expansions = condition ? abbreviationSynonyms(condition) : [];
@@ -239,7 +229,7 @@ export async function getEvidence(name: string, condition: string | undefined): 
   const mapped = lit.conditionMesh.filter(related);
   // The same check for the MeSH record looked up for the condition: its entry terms are kept only if one is related.
   const entryTerms = meshEntryTerms.some(related) ? meshEntryTerms : [];
-  const synonyms = [...new Set([...expansions, ...entryTerms, ...consumerNames, ...mapped.flatMap((m) => [m, uninvert(m)])])];
+  const synonyms = [...new Set([...expansions, ...entryTerms, ...mapped.flatMap((m) => [m, uninvert(m)])])];
 
   const known = new Set(lit.articles.map((a) => a.id));
   const extra = cochrane.filter((a) => !known.has(a.id)).map((a) => ({ ...a, aboutDrug: isAboutDrug(a, terms) }));
@@ -264,14 +254,12 @@ export async function getEvidence(name: string, condition: string | undefined): 
   const preprints = (await withFunding(lit.preprints, label, problems)).filter((a) =>
     ["meta-analysis", "systematic-review", "rct", "clinical-trial", "observational", "other"].includes(a.design),
   );
-  const checkedLabels = ownLabels.length ? ownLabels : label ? [label] : [];
-  let labelStatus = assessAcrossLabels(checkedLabels, condition, synonyms);
-  const authority = labelsByAuthority(checkedLabels)[0];
-  if (labelStatus.kind === "off-label" && authority && condition) {
-    // Wording the text match cannot connect to the condition; Claude reads the brand label's indications, and its quote is checked against the label.
-    const [indicated] = authority.indications.split(/limitations?\s+of\s+use/i);
+  let labelStatus = assessLabelStatus(label, condition, synonyms);
+  if (labelStatus.kind === "off-label" && label && condition) {
+    // Wording the text match cannot connect to the condition; Claude reads the indications, and its quote is checked against the label.
+    const [indicated] = label.indications.split(/limitations?\s+of\s+use/i);
     const quote = await indicationQuote(drug, condition, indicated);
-    if (quote) labelStatus = { kind: "likely-approved", matched: quote, byAi: true, on: labelRef(authority), checked: labelStatus.checked };
+    if (quote) labelStatus = { kind: "likely-approved", matched: quote, byAi: true };
   }
   const fullCounts = counts ?? countsFromStudies(studies.filter((a) => a.aboutDrug));
   const grade = assessGrade({

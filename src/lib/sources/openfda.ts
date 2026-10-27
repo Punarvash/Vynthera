@@ -2,7 +2,6 @@ import { cacheLife } from "next/cache";
 import { getJson } from "../http";
 import { asArray, compactDateToIso, stripTags, titleCase } from "../text";
 import type { DrugLabel, LabelTable } from "../types";
-import { ingredientFor, type Ingredient } from "./rxnav";
 
 // openFDA drug label API: https://open.fda.gov/apis/drug/label/
 const BASE = "https://api.fda.gov/drug/label.json";
@@ -227,25 +226,8 @@ export async function getLabels(name: string): Promise<DrugLabel[]> {
   return [...exact, ...broad].filter((l) => (seen.has(l.setId) ? false : (seen.add(l.setId), true)));
 }
 
-/**
- * Labels for exactly this drug. A name search also returns combination products and multivitamins that contain it
- * ("riboflavin" in a B-complex); for a single-ingredient drug only its own labels count, when it has any.
- */
-export function onlyThisDrug(labels: DrugLabel[], query: string, ingredient: Ingredient | null): DrugLabel[] {
-  if (ingredient?.combination) return labels;
-  const base = baseDrugName(ingredient?.name ?? query);
-  const precise = new Set(ingredient?.preciseNames ?? []);
-  const own = labels.filter((l) => baseDrugName(l.genericName) === base || precise.has(l.genericName) || namesDrug(l, query));
-  return own.length ? own : labels;
-}
-
 export async function getLabel(name: string): Promise<DrugLabel | null> {
-  const [labels, ingredient] = await Promise.all([getLabels(name), ingredientFor(name).catch(() => null)]);
-  const label = pickBestLabel(onlyThisDrug(labels, name, ingredient), name);
-  if (!label || !ingredient || ingredient.combination) return label;
-  // A generic label lists no brands; RxNorm knows them all ("Glucophage", "Glumetza"), for searches and price lists.
-  const brands = [...new Set([...label.brandNames, ...ingredient.brands])].filter((b) => baseDrugName(b) !== baseDrugName(label.genericName));
-  return { ...label, brandNames: brands };
+  return pickBestLabel(await getLabels(name), name);
 }
 
 /** Edit distance, to merge FDA data-entry typos ("clomiphene citrtae") into the common spelling. */
