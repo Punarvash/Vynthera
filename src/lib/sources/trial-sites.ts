@@ -49,6 +49,17 @@ export function stateName(code: string): string | undefined {
   return STATES[code];
 }
 
+/** The US state an address or affiliation names ("Houston, TX 77030, USA" or "Houston, Texas"), as its code. */
+export function stateIn(text: string): string | undefined {
+  const code = text.match(/,\s*([A-Z]{2})\s+\d{5}\b/)?.[1] ?? text.match(/,\s*([A-Z]{2})\s*(?:,|\.|$|USA|United States)/)?.[1];
+  if (code && STATES[code]) return code;
+  // Longest names first, so "West Virginia" is not read as "Virginia"; "Washington University" is in Missouri.
+  const byName = Object.entries(STATES)
+    .sort((a, b) => b[1].length - a[1].length)
+    .find(([, name]) => new RegExp(`(?<!George )\\b${name}\\b(?! University)`).test(text));
+  return byName?.[0];
+}
+
 /** Clean "Jane Doe, MD" role labels: PRINCIPAL_INVESTIGATOR -> Principal investigator. */
 function role(r?: string): string {
   return (r ?? "Contact").toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());

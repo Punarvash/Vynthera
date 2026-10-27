@@ -4,7 +4,9 @@ import { baseDrugName, drugsByIndication, getLabel } from "./sources/openfda";
 import { loadPartBLimits, loadTopPrescribers, partBForDrug } from "./cost-details";
 import { specialtiesFor } from "./condition-specialties";
 import type { PartDRow, TopEntry, TopPrescribersFile } from "./cost-data";
-import { providerByNpi, searchProviders, type Provider } from "./sources/nppes";
+import { providerByNpi, providersByName, searchProviders, type Provider } from "./sources/nppes";
+import { recentUsAuthorships, type Authorship } from "./sources/pubmed";
+import { groupAuthors, type ResearchAuthor } from "./research-authors";
 import { aggregatePrescribers, topPrescribers, type PrescriberExperience, type RawPrescriberRow } from "./sources/prescribers";
 import { aggregateAdministrators, topAdministrators, type Administrator, type RawServiceRow } from "./sources/partb-providers";
 import { trialSites, type TrialSite } from "./sources/trial-sites";
@@ -48,6 +50,8 @@ export interface SpecialistFilters {
   city?: string;
   zip?: string;
   specialty?: string;
+  /** Page of the NPI Registry directory (1-based). */
+  page?: number;
 }
 
 export function cleanFilters(sp: Record<string, string | string[] | undefined>): SpecialistFilters {
@@ -60,6 +64,7 @@ export function cleanFilters(sp: Record<string, string | string[] | undefined>):
     city: one(sp.city)?.replace(/[^\p{L} .'-]/gu, "").slice(0, 60) || undefined,
     zip: zip && zip.length === 5 ? zip : undefined,
     specialty: specialty && SPECIALTIES.includes(specialty) ? specialty : undefined,
+    page: one(sp.page) ? Math.min(40, Math.max(1, Number(one(sp.page)) || 1)) : undefined,
   };
 }
 
@@ -80,6 +85,10 @@ export interface SpecialistContext {
   where: string;
   /** Specialties that usually treat the condition (or the one chosen). */
   specialties: string[];
+  /** Specialties for the full directory: the ones above, or for a drug alone the specialties that prescribe it most. */
+  directorySpecialties: string[];
+  /** Names of the drug for literature searches (generic, salt, brands). */
+  drugNames: string[];
   /** CMS generic names of the drug, for Part D. */
   drugGenerics: string[];
   /** Drugs counted for "treats this condition" (CMS generic names). */
@@ -143,13 +152,16 @@ export async function getSpecialistContext(name: string, condition: string | und
     conditionDrugs = asPrescribed(bases.flatMap((b) => cmsGenericNames(partD.rows, b).slice(0, 2))).slice(0, 8);
   }
   const names = [drug, ...(label?.brandNames ?? []).map((b) => b.toLowerCase())];
+  const drugGenerics = asPrescribed(cmsGenericNames(partD.rows, drug)).slice(0, 4);
   return {
     drug,
     condition,
     filters: { ...filters, state, city },
     where: state ? [city, state].filter(Boolean).join(", ") : "the United States",
     specialties,
-    drugGenerics: asPrescribed(cmsGenericNames(partD.rows, drug)).slice(0, 4),
+    directorySpecialties: specialties.length ? specialties : index ? typesForDrug(index, drugGenerics) : [],
+    drugNames: [...new Set(names)].slice(0, 6),
+    drugGenerics,
     conditionDrugs,
     partBCodes: partBFile ? partBForDrug(partBFile.rows, names).map((r) => r.hcpcs).slice(0, 8) : [],
     apiUrl: meta.prescribers?.apiUrl?.startsWith("https://data.cms.gov/") ? meta.prescribers.apiUrl : undefined,
@@ -188,6 +200,17 @@ export function fromTopIndex(file: TopPrescribersFile, generics: string[], types
     }
   }
   return [...byNpi.values()].sort((a, b) => b.claims - a.claims);
+}
+
+/** The specialties (from the list above) that prescribe the drug most nationwide, for the directory. */
+export function typesForDrug(file: TopPrescribersFile, generics: string[], max = 3): string[] {
+  const claims = new Map<string, number>();
+  for (const g of generics) for (const [type, list] of Object.entries(file.drugs[g]?.types ?? {})) claims.set(type, (claims.get(type) ?? 0) + list.reduce((n, e) => n + e[1], 0));
+  // Primary care prescribes nearly everything; list it after the specialists unless nothing else prescribes the drug.
+  const primary = new Set(["Family Practice", "Internal Medicine"]);
+  const ranked = [...claims.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  const specialists = ranked.filter((t) => !primary.has(t));
+  return [...specialists, ...ranked.filter((t) => primary.has(t))].slice(0, max);
 }
 
 /** NPI Registry taxonomy names for CMS prescriber types where the two differ. */
@@ -315,4 +338,53 @@ export async function trialInvestigators(ctx: SpecialistContext): Promise<Sectio
   const { state, city } = ctx.filters;
   const items = await attempt("ClinicalTrials.gov", problems, [] as TrialSite[], () => trialSites({ drug: ctx.drug, condition: ctx.condition, state, city }));
   return { items, problems };
+}
+
+export interface PublishedAuthor {
+  author: ResearchAuthor;
+  /** NPI Registry record when exactly one clinician with this name is registered in the author's state. */
+  provider: Provider | null;
+}
+
+/** Clinicians who led recent US studies of the drug (and condition): experience beyond Medicare. */
+export async function publishedAuthors(ctx: SpecialistContext): Promise<SectionResult<PublishedAuthor>> {
+  const problems: SourceProblem[] = [];
+  const since = new Date().getFullYear() - 6;
+  const rows = await attempt("PubMed", problems, [] as Authorship[], () => recentUsAuthorships(ctx.drugNames, ctx.condition, since));
+  const top = groupAuthors(rows, ctx.filters.state).slice(0, 12);
+  const matched = await inBatches(top, 4, async (author) => {
+    if (!author.state) return null;
+    const first = author.fore.split(/\s+/)[0];
+    const found = await attempt("NPI Registry", problems, [] as Provider[], () => providersByName({ first, last: author.last, state: author.state as string }));
+    return found.length === 1 ? found[0] : null;
+  });
+  return { items: top.map((author, i) => ({ author, provider: matched[i] })), problems };
+}
+
+export const DIRECTORY_PAGE = 24;
+
+/** Every clinician of the matching specialties near the place, from the NPI Registry (all payers, not only Medicare). */
+export async function directory(ctx: SpecialistContext): Promise<SectionResult<Provider> & { hasMore: boolean }> {
+  const problems: SourceProblem[] = [];
+  const { state, city, page = 1 } = ctx.filters;
+  const types = ctx.directorySpecialties;
+  if (!state || types.length === 0) return { items: [], problems, hasMore: false };
+  const per = Math.ceil(DIRECTORY_PAGE / types.length);
+  const lists = await Promise.all(
+    types.map((t) =>
+      attempt("NPI Registry", problems, [] as Provider[], () => searchProviders({ specialty: nppesTaxonomy(t), state, city, limit: per + 1, skip: (page - 1) * per })),
+    ),
+  );
+  const seen = new Set<string>();
+  const items: Provider[] = [];
+  for (let i = 0; i < per + 1; i++) {
+    for (const l of lists) {
+      const p = l[i];
+      if (p && i < per && !seen.has(p.npi)) {
+        seen.add(p.npi);
+        items.push(p);
+      }
+    }
+  }
+  return { items, problems, hasMore: lists.some((l) => l.length > per) };
 }

@@ -1,4 +1,4 @@
-import { BadgeCheck, FlaskConical, Mail, MapPin, Phone, Printer, Stethoscope, Syringe, Users } from "lucide-react";
+import { BadgeCheck, BookOpen, FlaskConical, Mail, MapPin, Phone, Printer, Stethoscope, Syringe, Users, BookUser } from "lucide-react";
 import { Suspense } from "react";
 import { CopyTextButton } from "./copy-text";
 import { SourceProblems } from "./source-problems";
@@ -6,8 +6,11 @@ import { Badge, Card, LoadingBlock, SectionHeading, SourceLink } from "./ui";
 import {
   clinicAdministrators,
   conditionExperts,
+  directory,
   drugExperts,
   getSpecialistContext,
+  publishedAuthors,
+  type PublishedAuthor,
   SPECIALTIES,
   trialInvestigators,
   US_STATES,
@@ -17,6 +20,9 @@ import {
 } from "@/lib/specialists";
 import type { TrialSite } from "@/lib/sources/trial-sites";
 import { titleCase } from "@/lib/text";
+import { shortAffiliation } from "@/lib/research-authors";
+import type { Provider } from "@/lib/sources/nppes";
+import Link from "next/link";
 
 function formatPhone(p?: string): string | undefined {
   const d = p?.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
@@ -298,6 +304,155 @@ async function TrialSection({ ctx }: { ctx: SpecialistContext }) {
   );
 }
 
+function AuthorCard({ a }: { a: PublishedAuthor }) {
+  const p = a.provider;
+  const phone = formatPhone(p?.phone);
+  return (
+    <article className="rounded-lg border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="text-lg font-semibold">
+            {p?.name ?? a.author.name}
+            {p?.credential ? `, ${p.credential}` : ""}
+          </h4>
+          <p className="text-muted">{p?.specialty ?? shortAffiliation(a.author.affiliation)}</p>
+        </div>
+        {phone && (
+          <a href={`tel:${p?.phone?.replace(/\D/g, "")}`} className="inline-flex items-center gap-2 rounded-lg bg-navy px-4 py-2 font-semibold text-cream hover:bg-navy-hover">
+            <Phone aria-hidden className="size-4" /> {phone}
+          </a>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Badge tone="ai">
+          <BookOpen aria-hidden className="size-3.5" /> {a.author.papers.length} recent stud{a.author.papers.length === 1 ? "y" : "ies"} as lead or senior author
+        </Badge>
+        {p && (
+          <Badge tone="independent" title="One clinician with this name is registered in this state; confirm before contacting">
+            <BadgeCheck aria-hidden className="size-3.5" /> NPI match by name and state
+          </Badge>
+        )}
+      </div>
+      <p className="mt-2 text-[0.95rem]">{shortAffiliation(a.author.affiliation)}</p>
+      <ul className="mt-2 space-y-1 text-[0.95rem]">
+        {a.author.papers.slice(0, 3).map((x) => (
+          <li key={x.pmid}>
+            <SourceLink href={`https://pubmed.ncbi.nlm.nih.gov/${x.pmid}/`}>{x.title}</SourceLink> <span className="text-muted">({x.year})</span>
+          </li>
+        ))}
+      </ul>
+      {p?.address && (
+        <p className="mt-2 flex items-start gap-1.5 text-[0.95rem]">
+          <MapPin aria-hidden className="mt-1 size-4 shrink-0 text-muted" /> {p.address}, {p.city}
+          {p.fax ? ` · Fax ${formatPhone(p.fax)}` : ""}
+        </p>
+      )}
+      {p && (
+        <p className="mt-1 text-sm">
+          NPI {p.npi} · <SourceLink href={p.registryUrl}>NPI Registry record</SourceLink>
+        </p>
+      )}
+    </article>
+  );
+}
+
+async function AuthorSection({ ctx }: { ctx: SpecialistContext }) {
+  const r = await publishedAuthors(ctx);
+  return (
+    <>
+      <SourceProblems problems={r.problems} />
+      {r.items.length ? (
+        <ul className="space-y-3">
+          {r.items.map((a) => (
+            <li key={a.author.name}>
+              <AuthorCard a={a} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted">No recent US studies led by clinicians{ctx.filters.state ? ` in ${ctx.filters.state}` : ""} were found for {ctx.drug}.</p>
+      )}
+    </>
+  );
+}
+
+function DirectoryRow({ p }: { p: Provider }) {
+  const phone = formatPhone(p.phone);
+  return (
+    <li className="grid gap-1 border-b border-line py-3 sm:grid-cols-[1.2fr_1fr_auto] sm:items-center sm:gap-4">
+      <div>
+        <p className="font-semibold">
+          {p.name}
+          {p.credential ? `, ${p.credential}` : ""}
+        </p>
+        <p className="text-sm text-muted">{p.specialty}</p>
+      </div>
+      <p className="text-[0.95rem]">
+        {p.address ? `${p.address}, ${p.city}` : p.city}
+        {p.fax ? <span className="block text-sm text-muted">Fax {formatPhone(p.fax)}</span> : null}
+      </p>
+      <p className="flex flex-wrap items-center gap-3 text-[0.95rem]">
+        {phone && (
+          <a href={`tel:${p.phone?.replace(/\D/g, "")}`} className="font-semibold text-navy underline">
+            {phone}
+          </a>
+        )}
+        <SourceLink href={p.registryUrl}>NPI {p.npi}</SourceLink>
+      </p>
+    </li>
+  );
+}
+
+function pageHref(drug: string, condition: string | undefined, filters: SpecialistFilters, page: number): string {
+  const q = new URLSearchParams({ tab: "specialists" });
+  if (condition) q.set("condition", condition);
+  for (const k of ["zip", "state", "city", "specialty"] as const) if (filters[k]) q.set(k, String(filters[k]));
+  if (filters.zip) {
+    q.delete("state");
+    q.delete("city");
+  }
+  q.set("page", String(page));
+  return `/drug/${encodeURIComponent(drug)}?${q}#sp-directory`;
+}
+
+async function DirectorySection({ ctx, rawFilters }: { ctx: SpecialistContext; rawFilters: SpecialistFilters }) {
+  const r = await directory(ctx);
+  const page = ctx.filters.page ?? 1;
+  return (
+    <>
+      <SourceProblems problems={r.problems} />
+      {r.items.length ? (
+        <>
+          <ul>
+            {r.items.map((p) => (
+              <DirectoryRow key={p.npi} p={p} />
+            ))}
+          </ul>
+          <nav aria-label="Directory pages" className="mt-3 flex items-center justify-between gap-3">
+            {page > 1 ? (
+              <Link href={pageHref(ctx.drug, ctx.condition, rawFilters, page - 1)} className="font-semibold text-navy underline">
+                ← Previous
+              </Link>
+            ) : (
+              <span />
+            )}
+            <span className="text-sm text-muted">Page {page}</span>
+            {r.hasMore ? (
+              <Link href={pageHref(ctx.drug, ctx.condition, rawFilters, page + 1)} className="font-semibold text-navy underline">
+                Next →
+              </Link>
+            ) : (
+              <span />
+            )}
+          </nav>
+        </>
+      ) : (
+        <p className="text-muted">No {ctx.directorySpecialties.join(" or ")} clinicians are listed in {ctx.where}. Try the whole state or a nearby city.</p>
+      )}
+    </>
+  );
+}
+
 export async function SpecialistsTab({ drug, condition, filters }: { drug: string; condition?: string; filters: SpecialistFilters }) {
   const ctx = await getSpecialistContext(drug, condition, filters);
   const local = Boolean(ctx.filters.state);
@@ -307,8 +462,9 @@ export async function SpecialistsTab({ drug, condition, filters }: { drug: strin
       <div>
         <h2 className="text-2xl font-semibold">Specialists for second opinions</h2>
         <p className="text-muted">
-          Clinicians with real experience, ranked by how often they treat Medicare patients with these drugs, never by payments. Contact
-          details come from the federal NPI Registry and ClinicalTrials.gov. Contact them directly; Vynthera does not pass messages.
+          Clinicians with real experience with this drug: Medicare prescribing records, recent published studies and clinical trials, plus a full
+          directory of every licensed clinician near the patient. Never ranked by industry payments. Contact details come from the federal NPI
+          Registry, PubMed and ClinicalTrials.gov; contact clinicians directly, as Vynthera does not pass messages.
         </p>
       </div>
       <Card>
@@ -356,6 +512,25 @@ export async function SpecialistsTab({ drug, condition, filters }: { drug: strin
         </Card>
       </section>
 
+      <section aria-labelledby="sp-authors">
+        <Card>
+          <SectionHeading>
+            <span id="sp-authors" className="flex items-center gap-2">
+              <BookOpen aria-hidden className="size-5 text-gold-text" />
+              Published on {ctx.drug}
+              {condition ? ` for ${condition}` : ""}
+            </span>
+          </SectionHeading>
+          <p className="mb-3 text-muted">
+            Clinicians who led recent US studies (first or senior author, last 6 years){local ? ` in ${ctx.filters.state}` : ""}: experience with any patients, not
+            only Medicare. From PubMed; contact details are added when the NPI Registry has exactly one clinician with that name in that state.
+          </p>
+          <Suspense fallback={<LoadingBlock label="Searching recent studies…" lines={3} />}>
+            <AuthorSection ctx={ctx} />
+          </Suspense>
+        </Card>
+      </section>
+
       {ctx.partBCodes.length > 0 && (
         <section aria-labelledby="sp-admin">
           <Card>
@@ -387,6 +562,34 @@ export async function SpecialistsTab({ drug, condition, filters }: { drug: strin
           <Suspense fallback={<LoadingBlock label="Finding recruiting study sites…" lines={2} />}>
             <TrialSection ctx={ctx} />
           </Suspense>
+        </Card>
+      </section>
+
+      <section aria-labelledby="sp-directory">
+        <Card>
+          <SectionHeading>
+            <span id="sp-directory" className="flex scroll-mt-4 items-center gap-2">
+              <BookUser aria-hidden className="size-5 text-gold-text" />
+              Directory: {ctx.directorySpecialties.length ? ctx.directorySpecialties.join(", ") : "specialists"} {local ? `in ${ctx.where}` : ""}
+            </span>
+          </SectionHeading>
+          {local && ctx.directorySpecialties.length > 0 ? (
+            <>
+              <p className="mb-3 text-muted">
+                Every licensed clinician of {ctx.directorySpecialties.length === 1 ? "this specialty" : "these specialties"} listed in the federal NPI Registry, whatever
+                insurance they take{condition ? `, matched to ${condition}` : `, chosen from the specialties that prescribe ${ctx.drug} most`}. Not ranked by experience.
+              </p>
+              <Suspense fallback={<LoadingBlock label="Loading the NPI Registry…" lines={4} />}>
+                <DirectorySection ctx={ctx} rawFilters={filters} />
+              </Suspense>
+            </>
+          ) : (
+            <p>
+              {local
+                ? "Choose a specialty above to browse every clinician of that specialty near the patient."
+                : "Add a ZIP code or state above to browse every clinician of the matching specialties near the patient, not only those in Medicare."}
+            </p>
+          )}
         </Card>
       </section>
 
