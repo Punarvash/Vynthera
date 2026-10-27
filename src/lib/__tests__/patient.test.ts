@@ -155,3 +155,14 @@ describe("interactions for patients", () => {
     expect(interactionHeadings(label)).toEqual(["Carbonic anhydrase inhibitors", "Drugs that reduce metformin clearance", "Alcohol"]);
   });
 });
+
+describe("sentence splitting", () => {
+  it("keeps decimals and section numbers inside a sentence", async () => {
+    const { sentences } = await import("../medguide");
+    expect(sentences("The needle cover for the Pen 40 mg/0.8 mL contains latex. See section 2.1 for details. Next one.")).toEqual([
+      "The needle cover for the Pen 40 mg/0.8 mL contains latex.",
+      "See section 2.1 for details.",
+      "Next one.",
+    ]);
+  });
+});

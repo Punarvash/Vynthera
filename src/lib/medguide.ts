@@ -56,7 +56,7 @@ export function parseMedGuide(text: string | undefined): MedGuide {
 /** Bulleted items in a section ("• nausea • vomiting"), or its sentences when it has no bullets. */
 export function items(text: string | undefined, max = 10): string[] {
   if (!text) return [];
-  const parts = text.includes("•") ? text.split("•").slice(1) : text.match(/[^.!?]+[.!?]+/g) ?? [text];
+  const parts = text.includes("•") ? text.split("•").slice(1) : sentences(text);
   return parts
     .map((s) =>
       s
@@ -70,9 +70,14 @@ export function items(text: string | undefined, max = 10): string[] {
     .slice(0, max);
 }
 
+/** Sentences, split only where a capital letter follows, so "0.8 mL" and "2.1" stay whole. */
+export function sentences(text: string): string[] {
+  return text.split(/(?<=[.!?])\s+(?=["“(]?[A-Z])/).filter((x) => x.trim());
+}
+
 export function sentencesMatching(text: string | undefined, re: RegExp, max = 3): string[] {
   if (!text) return [];
-  return (text.match(/[^.!?]+[.!?]+/g) ?? [])
+  return sentences(text)
     .map((s) => s.replace(/^[\s•"”-]+/, "").trim())
     .filter((s) => re.test(s))
     .slice(0, max);

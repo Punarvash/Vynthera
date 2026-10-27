@@ -4,7 +4,7 @@ import { cacheLife } from "next/cache";
 import { z } from "zod";
 import { claudeEnabled, claudeModel } from "./claude";
 import type { EvidenceBundle } from "./evidence";
-import { items, parseMedGuide, sentencesMatching, splitSideEffects } from "./medguide";
+import { items, parseMedGuide, sentences, sentencesMatching, splitSideEffects } from "./medguide";
 import { firstSentences, truncate } from "./text";
 import type { MedlinePlusEntry } from "./sources/medlineplus";
 import type { GradeLevel, LabelTable } from "./types";
@@ -258,8 +258,14 @@ export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[
     ...sentencesMatching(`${l?.medGuide ?? ""} ${counseling ?? ""}`, /\b(blood tests?|lab(oratory)? tests?|check your|monitor|eye exam|kidney function|liver (function|tests?)|regular (visits|check))/i, 4),
   ].map(forPatients).filter((x, i, a) => x.length < 300 && a.indexOf(x) === i);
 
-  const doseSentence = (l?.dosage?.match(/[^.]*\b(recommended|usual|starting|initial)\s+(starting\s+|adult\s+)?dos(e|age)[^.]*\./i) ?? [])[0];
-  const usualDose = doseSentence ? `${truncate(forPatients(doseSentence), 260)} Your doctor may choose a different dose for you.` : undefined;
+  // Section references ("( 2.1 )") removed first, so their periods do not end the sentence early.
+  const dosageText = (l?.dosage ?? "").replace(/\(\s*\d+(\.\d+)*\s*\)/g, "").replace(/\s+/g, " ");
+  const doseSentence = sentencesMatching(dosageText, /\b(recommended|usual|starting|initial)\s+(starting\s+|adult\s+)?dos(e|age)\b/i, 1)[0]
+    ?.replace(/^[\s\d.)•:-]+/, "")
+    .trim();
+  // Dosing tables (by weight, infection or indication) do not read as a sentence; leave those to the doctor.
+  const tableLike = !doseSentence || doseSentence.length > 240 || /Dosage Recommendations|Infection Severity|Weight|Table|kg\b/i.test(doseSentence);
+  const usualDose = tableLike ? undefined : `${forPatients(doseSentence)} Your doctor may choose a different dose for you.`;
 
   const overdoseSaid = sentencesMatching(guide.howToTake, /too much|overdose/i, 1)[0];
   const overdose = overdoseSaid ? `${forPatients(overdoseSaid)} ${POISON_HELP}` : POISON_HELP;
@@ -268,13 +274,22 @@ export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[
 
   const guideText = l?.medGuide ?? "";
   const beforeYouStart = items(guide.beforeTaking?.split(/Tell your (?:healthcare provider|doctor) about all (?:of )?the medicines you take|Especially tell/i)[0], 12);
-  const seriousWarnings = items(guide.important, 8);
+  // The "most important information" section, before it moves on to "What is …?"; whole sentences, not list fragments.
+  const importantText = guide.important?.split(/What (?:is|are) [A-Z]/)[0] ?? "";
+  const seriousWarnings = sentences(importantText.replace(/•/g, " "))
+    .map((x) => forPatients(x.replace(/^[\s"”.,;:)-]+/, "")))
+    .filter((x) => x.length > 30 && x.length < 400 && /^[A-Z]/.test(x))
+    .slice(0, 6);
   const fromGuide = interactionItems(guideText);
   const interactions = fromGuide.length
     ? fromGuide
-    : interactionHeadings(l?.interactions).map((h) => `${h} (ask your doctor or pharmacist if you take any of these)`);
+    : interactionHeadings(l?.interactions).filter((h) => !/laborator|test|pharmacokinetic|clinical|overview/i.test(h));
   const dailyLife = sentencesMatching(guideText || counseling, /\b(drive|driving|operate machinery|heavy machinery|sunlight|sunburn|tanning|dizz|drows|overheat|heat stroke|dehydrat)/i, 3).map(forPatients);
-  const stopping = sentencesMatching(`${guideText} ${counseling ?? ""}`, /\b(do not stop|don't stop|stop taking|suddenly)/i, 2).map(forPatients).join(" ");
+  // Only advice about stopping on one's own ("Do not stop taking … without talking to your doctor"), from the guide written for patients.
+  const stopping = sentencesMatching(guideText, /\b(do not stop|don't stop|stop .{0,40}suddenly|suddenly stop)/i, 2)
+    .map(forPatients)
+    .filter((x) => x.length < 300)
+    .join(" ");
   const agesNote = sentencesMatching(guideText, /\b(children|child|under (the age of )?\d+ years|older adults|65 years)/i, 2).map(forPatients).join(" ");
 
   const drawbacks = ["Cost depends on your insurance. Ask your pharmacist about generic versions and discount programs."];
@@ -311,6 +326,11 @@ export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[
   };
 }
 
+/** "Trouble breathing" -> "trouble breathing", but "RYBELSUS" and "HUMIRA" keep their capitals. */
+function lowerFirst(s: string): string {
+  return /^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
 /** The handful of points a patient must remember: safety first, then how to take it, then what to watch for. */
 export function topFiveFrom(p: { mostImportant?: string; howToTake: string[]; commonSideEffects: string[]; call911: string[]; avoid: string[]; missedDose?: string }): string[] {
   const out: string[] = [];
@@ -318,7 +338,7 @@ export function topFiveFrom(p: { mostImportant?: string; howToTake: string[]; co
   if (p.howToTake[0]) out.push(truncate(p.howToTake[0], 200));
   if (p.commonSideEffects.length) out.push(`Common side effects: ${p.commonSideEffects.slice(0, 4).join(", ").toLowerCase()}. Tell your doctor if they bother you.`);
   const emergency = p.call911.find((c) => !/allerg/i.test(c)) ?? p.call911[0];
-  if (emergency) out.push(`Get emergency help for: ${truncate(emergency.replace(/\.$/, ""), 180).toLowerCase()}.`);
+  if (emergency) out.push(`Get emergency help for: ${lowerFirst(truncate(firstSentences(emergency, 1).replace(/\.$/, ""), 180))}.`);
   const avoid = p.avoid.find((a) => !/^Tell your doctor and pharmacist about every medicine/.test(a));
   out.push(avoid ? truncate(avoid, 200) : "Tell your doctor and pharmacist about every medicine, vitamin and supplement you take.");
   return out.slice(0, 5);
