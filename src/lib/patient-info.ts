@@ -258,14 +258,7 @@ export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[
     ...sentencesMatching(`${l?.medGuide ?? ""} ${counseling ?? ""}`, /\b(blood tests?|lab(oratory)? tests?|check your|monitor|eye exam|kidney function|liver (function|tests?)|regular (visits|check))/i, 4),
   ].map(forPatients).filter((x, i, a) => x.length < 300 && a.indexOf(x) === i);
 
-  // Section references ("( 2.1 )") removed first, so their periods do not end the sentence early.
-  const dosageText = (l?.dosage ?? "").replace(/\(\s*\d+(\.\d+)*\s*\)/g, "").replace(/\s+/g, " ");
-  const doseSentence = sentencesMatching(dosageText, /\b(recommended|usual|starting|initial)\s+(starting\s+|adult\s+)?dos(e|age)\b/i, 1)[0]
-    ?.replace(/^[\s\d.)•:-]+/, "")
-    .trim();
-  // Dosing tables (by weight, infection or indication) do not read as a sentence; leave those to the doctor.
-  const tableLike = !doseSentence || doseSentence.length > 240 || /Dosage Recommendations|Infection Severity|Weight|Table|kg\b/i.test(doseSentence);
-  const usualDose = tableLike ? undefined : `${forPatients(doseSentence)} Your doctor may choose a different dose for you.`;
+  const usualDose = usualDoseFrom(l?.dosage);
 
   const overdoseSaid = sentencesMatching(guide.howToTake, /too much|overdose/i, 1)[0];
   const overdose = overdoseSaid ? `${forPatients(overdoseSaid)} ${POISON_HELP}` : POISON_HELP;
@@ -329,6 +322,20 @@ export function basicPlainLanguage(e: EvidenceBundle, medline: MedlinePlusEntry[
 /** "Trouble breathing" -> "trouble breathing", but "RYBELSUS" and "HUMIRA" keep their capitals. */
 function lowerFirst(s: string): string {
   return /^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
+/** The label's starting or usual dose as one plain sentence, or nothing when the label gives it as a table. */
+export function usualDoseFrom(dosage: string | undefined): string | undefined {
+  // Section references ("( 2.1 )") removed first, so their periods do not end the sentence early.
+  const dosageText = (dosage ?? "").replace(/\(\s*\d+(\.\d+)*\s*\)/g, "").replace(/\s+/g, " ");
+  // From the first mention of the starting or usual dose to the end of that sentence ("Starting dose: 500 mg orally once daily …").
+  // "Starting/usual/initial dose" first; "Recommended Dosage" is often only a heading.
+  const specific = dosageText.search(/\b(starting|usual|initial)\s+(adult\s+)?dos(e|age)\b/i);
+  const doseAt = specific >= 0 ? specific : dosageText.search(/\brecommended\s+(adult\s+)?dos(e|age)\s+(is|of)\b/i);
+  const doseSentence = doseAt >= 0 ? sentences(dosageText.slice(doseAt))[0]?.trim().replace(/^./, (c) => c.toUpperCase()) : undefined;
+  // Dosing tables (by weight, infection or indication) do not read as a sentence; leave those to the doctor.
+  const tableLike = !doseSentence || doseSentence.length > 240 || /Dosage Recommendations|Infection Severity|Weight|Table|kg\b/i.test(doseSentence);
+  return tableLike ? undefined : `${forPatients(doseSentence)} Your doctor may choose a different dose for you.`;
 }
 
 /** The handful of points a patient must remember: safety first, then how to take it, then what to watch for. */

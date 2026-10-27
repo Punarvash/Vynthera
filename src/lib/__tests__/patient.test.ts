@@ -166,3 +166,16 @@ describe("sentence splitting", () => {
     ]);
   });
 });
+
+describe("usual dose", () => {
+  it("states the starting dose in one sentence, without section numbers", async () => {
+    const { usualDoseFrom } = await import("../patient-info");
+    expect(usualDoseFrom("2.1 Recommended Dosage ( 2.1 ) Starting dose: 500 mg orally once daily with the evening meal ( 2.1 ). Increase by 500 mg weekly.")).toBe(
+      "Starting dose: 500 mg orally once daily with the evening meal. Your doctor may choose a different dose for you.",
+    );
+  });
+  it("leaves dosing tables to the doctor", async () => {
+    const { usualDoseFrom } = await import("../patient-info");
+    expect(usualDoseFrom("Recommended Dosage for Pediatric Patients by Weight 10 kg (22 lbs) to less than 15 kg 10 mg every other week")).toBeUndefined();
+  });
+});

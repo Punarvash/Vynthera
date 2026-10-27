@@ -70,9 +70,9 @@ export function items(text: string | undefined, max = 10): string[] {
     .slice(0, max);
 }
 
-/** Sentences, split only where a capital letter follows, so "0.8 mL" and "2.1" stay whole. */
+/** Sentences, split at a full stop followed by a space and not a number, so "0.8 mL" and "2.1" stay whole. */
 export function sentences(text: string): string[] {
-  return text.split(/(?<=[.!?])\s+(?=["“(]?[A-Z])/).filter((x) => x.trim());
+  return text.split(/(?<=[.!?])\s+(?=[^\d\s])/).filter((x) => x.trim());
 }
 
 export function sentencesMatching(text: string | undefined, re: RegExp, max = 3): string[] {
