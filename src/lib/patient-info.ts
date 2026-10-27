@@ -327,15 +327,25 @@ function lowerFirst(s: string): string {
 /** The label's starting or usual dose as one plain sentence, or nothing when the label gives it as a table. */
 export function usualDoseFrom(dosage: string | undefined): string | undefined {
   // Section references ("( 2.1 )") removed first, so their periods do not end the sentence early.
-  const dosageText = (dosage ?? "").replace(/\(\s*\d+(\.\d+)*\s*\)/g, "").replace(/\s+/g, " ");
+  // A section reference ends a bullet point in labels ("… evening meal ( 2.1 ) Increase …"), so it is kept as a break.
+  const dosageText = (dosage ?? "").replace(/\(\s*\d+(\.\d+)*\s*\)/g, " | ").replace(/\s+/g, " ");
   // From the first mention of the starting or usual dose to the end of that sentence ("Starting dose: 500 mg orally once daily …").
   // "Starting/usual/initial dose" first; "Recommended Dosage" is often only a heading.
   const specific = dosageText.search(/\b(starting|usual|initial)\s+(adult\s+)?dos(e|age)\b/i);
   const doseAt = specific >= 0 ? specific : dosageText.search(/\brecommended\s+(adult\s+)?dos(e|age)\s+(is|of)\b/i);
-  const doseSentence = doseAt >= 0 ? sentences(dosageText.slice(doseAt))[0]?.trim().replace(/^./, (c) => c.toUpperCase()) : undefined;
+  const doseSentence =
+    doseAt >= 0
+      ? sentences(dosageText.slice(doseAt))[0]
+          ?.split(/\s\|\s?|\s•\s/)[0]
+          .trim()
+          .replace(/[,;:]$/, "")
+          .replace(/^./, (c) => c.toUpperCase())
+      : undefined;
   // Dosing tables (by weight, infection or indication) do not read as a sentence; leave those to the doctor.
   const tableLike = !doseSentence || doseSentence.length > 240 || /Dosage Recommendations|Infection Severity|Weight|Table|kg\b/i.test(doseSentence);
-  return tableLike ? undefined : `${forPatients(doseSentence)} Your doctor may choose a different dose for you.`;
+  // It must state the amount ("Starting dose: 500 mg …"); "Initial dose, followed by 40 mg" belongs to one use's table, not a usual dose.
+  if (!tableLike && !/^(Starting|Usual|Initial|Recommended)\s+(adult\s+)?(starting\s+)?dos(e|age)\s*(is|of|:)?\s*\d/i.test(doseSentence)) return undefined;
+  return tableLike ? undefined : `${forPatients(doseSentence).replace(/[^.]$/, (c) => `${c}.`)} Your doctor may choose a different dose for you.`;
 }
 
 /** The handful of points a patient must remember: safety first, then how to take it, then what to watch for. */

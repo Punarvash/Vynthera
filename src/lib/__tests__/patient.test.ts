@@ -179,3 +179,14 @@ describe("usual dose", () => {
     expect(usualDoseFrom("Recommended Dosage for Pediatric Patients by Weight 10 kg (22 lbs) to less than 15 kg 10 mg every other week")).toBeUndefined();
   });
 });
+
+describe("usual dose from real label wording", () => {
+  it("handles a section reference with no full stop and skips one use's loading dose", async () => {
+    const { usualDoseFrom } = await import("../patient-info");
+    expect(usualDoseFrom("Starting dose: 500 mg orally once daily with the evening meal ( 2.1 ) Increase the dose in 500 mg increments weekly ( 2.1 )")).toBe(
+      "Starting dose: 500 mg orally once daily with the evening meal. Your doctor may choose a different dose for you.",
+    );
+    expect(usualDoseFrom("Crohn's Disease: Initial dose, followed by 40 mg every other week starting one week after initial dose.")).toBeUndefined();
+    expect(usualDoseFrom("Day 1 to 30: Recommended starting dosage is 3 mg orally once daily for 30 days.")).toMatch(/^Starting dosage is 3 mg orally once daily for 30 days\./);
+  });
+});
