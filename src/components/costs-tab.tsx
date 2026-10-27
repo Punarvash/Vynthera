@@ -1,4 +1,4 @@
-import { BadgeCheck, CalendarClock, ExternalLink, Info, PiggyBank, ShieldCheck } from "lucide-react";
+import { BadgeCheck, Briefcase, CalendarClock, ExternalLink, HeartHandshake, Hospital, Info, PiggyBank, ShieldCheck, Syringe, Wallet } from "lucide-react";
 import { CopyTextButton } from "./copy-text";
 import { CostCalculator, type CalculatorProduct } from "./cost-calculator";
 import { DataTable } from "./data-table";
@@ -13,6 +13,8 @@ import type { PartDRow } from "@/lib/cost-data";
 import { loadCostDetails } from "@/lib/loaders";
 import { capNote } from "@/lib/medicare-benefit";
 import { titleCase } from "@/lib/text";
+import { patientCosts, type PatientCost } from "@/lib/patient-cost";
+import { PrintButton } from "./print-button";
 
 function Updated({ children }: { children: React.ReactNode }) {
   return (
@@ -83,6 +85,61 @@ function costSummaryText(c: CostDetails): string {
   return lines.join("\n");
 }
 
+const WHO_ICON = { cash: Wallet, medicare: Hospital, medicaid: HeartHandshake, employer: Briefcase, clinic: Syringe } as const;
+
+function PatientCostCard({ pc, drug }: { pc: PatientCost; drug: string }) {
+  return (
+    <Card className="print-area">
+      <SectionHeading>What your patient will likely pay</SectionHeading>
+      <p className="mb-4 text-muted">
+        A month&apos;s supply{pc.basis ? <> (estimates use {pc.basis}, 30 units)</> : null}, by how the patient is covered. Plans differ, so treat these as a
+        starting point for the conversation.
+      </p>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {pc.costs.map((x) => (
+          <li key={x.who} className="rounded-lg border border-line bg-cream/40 p-4">
+            <p className="flex items-center gap-2 font-semibold">
+              {(() => {
+                const Icon = WHO_ICON[x.who];
+                return <Icon aria-hidden className="size-4 text-gold-text" />;
+              })()}
+              {x.title}
+            </p>
+            <p className="mt-1">
+              <span className="text-2xl font-semibold tabular-nums">{x.amount}</span> <span className="text-muted">{x.per}</span>
+            </p>
+            <ul className="mt-2 space-y-1 text-[0.95rem] text-muted">
+              {x.detail.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+      {pc.lowerCost.length > 0 && (
+        <div className="mt-5">
+          <h4 className="mb-2 flex items-center gap-2 font-semibold">
+            <PiggyBank aria-hidden className="size-5 text-gold-text" /> How to lower the cost
+          </h4>
+          <ul className="list-disc space-y-1 pl-5">
+            {pc.lowerCost.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="mt-5 rounded-lg border-l-4 border-gold bg-surface px-4 py-3">
+        <h4 className="font-semibold">What to tell the patient</h4>
+        <p className="mt-1">{pc.script}</p>
+        <div className="no-print mt-3 flex flex-wrap gap-2">
+          <CopyTextButton text={pc.script} label="Copy for the patient" />
+          <PrintButton label={`Print cost sheet for ${drug}`} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function NadacTable({ prices }: { prices: NadacPrice[] }) {
   return (
     <DataTable
@@ -128,47 +185,34 @@ export async function CostsTab({ drug }: { drug: string }) {
   // Approved generics can be held back by patents (apixaban); count them as sold only with pharmacy or Medicare data.
   const genericSold = c.generic.length > 0 || Boolean(gen);
   const perFill = gen?.avgPerClaim ?? topD?.avgPerClaim;
+  const pc = patientCosts({
+    drug: c.drug,
+    generic: c.generic,
+    brand: c.brand,
+    partD: c.partD,
+    coverage: o ?? null,
+    partB: c.partB,
+    partBSpending: c.partBSpending,
+    comparison: c.comparison,
+    genericSold,
+    biosimilars: c.availability?.biosimilars ?? [],
+    insulin,
+    negotiated30Day: c.negotiated.current?.price30Day,
+    brandHolders: (c.availability?.brandHolders ?? []).map(titleCase),
+  });
 
   return (
     <div className="space-y-8">
       <SourceProblems problems={c.problems} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold">What {c.drug} costs</h2>
-          <p className="text-muted">Public US price and coverage data, refreshed weekly. Last updated {c.meta.importedAt || "recently"}.</p>
+          <h2 className="text-2xl font-semibold">What {c.drug} costs your patient</h2>
+          <p className="text-muted">Estimates from public US price and coverage data, refreshed weekly. Last updated {c.meta.importedAt || "recently"}.</p>
         </div>
-        <CopyTextButton text={costSummaryText(c)} label="Copy cost summary" />
+        <CopyTextButton text={costSummaryText(c)} label="Copy detailed cost summary" />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Tile
-          label="Pharmacy cost"
-          tip={<InfoTip term="nadac" label="NADAC" />}
-          value={c.genericRange ? `${money(c.genericRange.min)}` : c.brandRange ? money(c.brandRange.min) : "–"}
-          note={
-            c.genericRange
-              ? `Generic, ${unitLabel(c.genericRange.unit)}${c.brandRange ? `; brand from ${money(c.brandRange.min)}` : ""}`
-              : c.brandRange
-                ? `Brand, ${unitLabel(c.brandRange.unit)}`
-                : "Not sold through retail pharmacies"
-          }
-        />
-        <Tile
-          label="Medicare cost per patient"
-          tip={<InfoTip term={topD ? "partD" : "partB"} label={topD ? "Medicare Part D" : "Medicare Part B"} />}
-          value={topD ? `${money(topD.avgPerBeneficiary)} / year` : topB ? `${money(topB.avgPerBeneficiary)} / year` : "–"}
-          note={topD ? `${topD.brand}, Part D ${c.partDYear}, plan and patient together` : topB ? `${topB.brand || topB.generic}, Part B ${c.partBSpendingYear}, given in a clinic` : "Not in Medicare spending data"}
-        />
-        <Tile
-          label="Medicare plan coverage"
-          value={o ? pct(o.covered, o.plans) : "–"}
-          note={
-            o
-              ? `${o.covered.toLocaleString("en-US")} of ${o.plans.toLocaleString("en-US")} drug plans; usually ${tierText(o.tier).toLowerCase()}${o.priorAuth ? `, prior authorization in ${pct(o.priorAuth, o.covered)}` : ""}`
-              : "Not on Medicare drug plan formularies"
-          }
-        />
-      </div>
+      <PatientCostCard pc={pc} drug={c.drug} />
 
       {(c.availability || c.negotiated.current || c.negotiated.next) && (
         <div className="flex flex-wrap gap-2">
@@ -194,39 +238,6 @@ export async function CostsTab({ drug }: { drug: string }) {
             </Badge>
           )}
         </div>
-      )}
-
-      {(c.negotiated.current || c.negotiated.next) && (
-        <Card>
-          <SectionHeading>
-            Medicare negotiated price
-            <InfoTip term="negotiated" label="negotiated price" />
-          </SectionHeading>
-          <ul className="space-y-1">
-            {c.negotiated.current && (
-              <li>
-                <span className="text-xl font-semibold tabular-nums">{money(c.negotiated.current.price30Day)}</span> per 30-day supply of{" "}
-                {titleCase(c.negotiated.current.drug.replace(/;\s*/g, ", "))} since {c.negotiated.current.effective}
-                {c.negotiated.current.end ? `, until ${c.negotiated.current.end}` : ""}.
-              </li>
-            )}
-            {c.negotiated.next && (
-              <li>
-                {c.negotiated.current ? "Then " : ""}
-                <span className="text-xl font-semibold tabular-nums">{money(c.negotiated.next.price30Day)}</span> per 30-day supply of{" "}
-                {titleCase(c.negotiated.next.drug.replace(/;\s*/g, ", "))} from {c.negotiated.next.effective}.
-              </li>
-            )}
-          </ul>
-          <p className="mt-2 text-muted">
-            This is what Medicare drug plans pay for the drug. Patients still pay their plan&apos;s copay or coinsurance, which is usually lower as a result.
-          </p>
-          <Updated>
-            <SourceLink href="https://www.cms.gov/initiatives/medicare-prescription-drug-affordability/overview/medicare-drug-price-negotiation-program/selected-drugs-negotiated-prices">
-              CMS negotiated prices
-            </SourceLink>
-          </Updated>
-        </Card>
       )}
 
       {products.length > 0 && (
@@ -317,6 +328,99 @@ export async function CostsTab({ drug }: { drug: string }) {
           </p>
         </Card>
       </section>
+
+      {c.comparison.length > 0 && (
+        <Card>
+          <SectionHeading>Cheaper options in the same class: {c.drugClass}</SectionHeading>
+          <p className="mb-3 text-muted">Drugs in the same FDA pharmacologic class, lowest Medicare cost per fill first. Check that an alternative suits the patient.</p>
+          <DataTable
+            caption="Same-class cost comparison"
+            rows={c.comparison}
+            rowKey={(d) => d.name}
+            highlight={(d) => d.isThisDrug}
+            columns={[
+              { header: "Drug", primary: true, cell: (d) => `${titleCase(d.name)}${d.isThisDrug ? " (this drug)" : ""}` },
+              { header: "Generic per unit", align: "right", cell: (d) => (d.genericPerUnit !== undefined ? money(d.genericPerUnit) : "–") },
+              { header: "Brand per unit", align: "right", cell: (d) => (d.brandPerUnit !== undefined ? money(d.brandPerUnit) : "–") },
+              { header: "Medicare per fill", align: "right", cell: (d) => (d.medicarePerClaim !== undefined ? money(d.medicarePerClaim) : "–") },
+            ]}
+          />
+          <Updated>
+            NADAC as of {c.nadacAsOf} · Medicare {c.partDYear} · Class from the FDA label
+          </Updated>
+        </Card>
+      )}
+
+      <Card>
+        <SectionHeading>
+          <span className="flex items-center gap-2">
+            <PiggyBank aria-hidden className="size-5 text-gold-text" /> Ways to save
+          </span>
+        </SectionHeading>
+        <ul className="space-y-2">
+          {genericSold && c.brandRange && c.genericRange && (
+            <li className="flex gap-2">
+              <Info aria-hidden className="mt-1 size-4 shrink-0 text-muted" />
+              <span>A generic is available and costs pharmacies far less than the brand ({money(c.genericRange.min)} vs {money(c.brandRange.min)} per unit).</span>
+            </li>
+          )}
+          {[
+            ["Discount card prices", `https://www.goodrx.com/${encodeURIComponent(c.drug.toLowerCase().replace(/\s+/g, "-"))}`, "GoodRx shows cash prices at nearby pharmacies."],
+            ["Mark Cuban Cost Plus Drugs", "https://costplusdrugs.com/medications/", "Online pharmacy selling many generics at cost plus 15%."],
+            ["Manufacturer assistance", "https://medicineassistancetool.org/", `Patient assistance and copay programs${c.availability?.brandHolders.length ? ` (brand: ${c.availability.brandHolders.slice(0, 2).map(titleCase).join(", ")})` : ""}.`],
+            ["NeedyMeds", "https://www.needymeds.org/", "Free directory of assistance programs and drug discount cards."],
+            ["Medicare Extra Help", "https://www.ssa.gov/medicare/part-d-extra-help", "Lowers Medicare drug costs for people with limited income."],
+            ["Medicare Prescription Payment Plan", "https://www.medicare.gov/prescription-payment-plan", "Spreads Medicare drug costs into monthly payments."],
+            ["State drug assistance programs", "https://www.medicare.gov/basics/costs/help/drug-costs", "Some states help pay drug costs."],
+          ].map(([title, href, text]) => (
+            <li key={title} className="flex gap-2">
+              <ExternalLink aria-hidden className="mt-1 size-4 shrink-0 text-muted" />
+              <span>
+                <SourceLink href={href}>{title}</SourceLink>: {text}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm text-muted">Links open other websites. Vynthera does not share any patient information with them.</p>
+      </Card>
+      <details className="rounded-lg border border-line bg-surface p-4">
+        <summary className="cursor-pointer text-lg font-semibold text-navy">
+          Pricing details: pharmacy acquisition cost, Medicare spending, Part B limits and federal prices
+        </summary>
+        <p className="mt-2 text-muted">The wholesale and program prices the patient estimates above are built from.</p>
+        <div className="mt-4 space-y-8">
+      {(c.negotiated.current || c.negotiated.next) && (
+        <Card>
+          <SectionHeading>
+            Medicare negotiated price
+            <InfoTip term="negotiated" label="negotiated price" />
+          </SectionHeading>
+          <ul className="space-y-1">
+            {c.negotiated.current && (
+              <li>
+                <span className="text-xl font-semibold tabular-nums">{money(c.negotiated.current.price30Day)}</span> per 30-day supply of{" "}
+                {titleCase(c.negotiated.current.drug.replace(/;\s*/g, ", "))} since {c.negotiated.current.effective}
+                {c.negotiated.current.end ? `, until ${c.negotiated.current.end}` : ""}.
+              </li>
+            )}
+            {c.negotiated.next && (
+              <li>
+                {c.negotiated.current ? "Then " : ""}
+                <span className="text-xl font-semibold tabular-nums">{money(c.negotiated.next.price30Day)}</span> per 30-day supply of{" "}
+                {titleCase(c.negotiated.next.drug.replace(/;\s*/g, ", "))} from {c.negotiated.next.effective}.
+              </li>
+            )}
+          </ul>
+          <p className="mt-2 text-muted">
+            This is what Medicare drug plans pay for the drug. Patients still pay their plan&apos;s copay or coinsurance, which is usually lower as a result.
+          </p>
+          <Updated>
+            <SourceLink href="https://www.cms.gov/initiatives/medicare-prescription-drug-affordability/overview/medicare-drug-price-negotiation-program/selected-drugs-negotiated-prices">
+              CMS negotiated prices
+            </SourceLink>
+          </Updated>
+        </Card>
+      )}
 
       <section aria-labelledby="list-price">
         <Card>
@@ -457,60 +561,8 @@ export async function CostsTab({ drug }: { drug: string }) {
         </Card>
       )}
 
-      {c.comparison.length > 0 && (
-        <Card>
-          <SectionHeading>Cheaper options in the same class: {c.drugClass}</SectionHeading>
-          <p className="mb-3 text-muted">Drugs in the same FDA pharmacologic class, lowest Medicare cost per fill first. Check that an alternative suits the patient.</p>
-          <DataTable
-            caption="Same-class cost comparison"
-            rows={c.comparison}
-            rowKey={(d) => d.name}
-            highlight={(d) => d.isThisDrug}
-            columns={[
-              { header: "Drug", primary: true, cell: (d) => `${titleCase(d.name)}${d.isThisDrug ? " (this drug)" : ""}` },
-              { header: "Generic per unit", align: "right", cell: (d) => (d.genericPerUnit !== undefined ? money(d.genericPerUnit) : "–") },
-              { header: "Brand per unit", align: "right", cell: (d) => (d.brandPerUnit !== undefined ? money(d.brandPerUnit) : "–") },
-              { header: "Medicare per fill", align: "right", cell: (d) => (d.medicarePerClaim !== undefined ? money(d.medicarePerClaim) : "–") },
-            ]}
-          />
-          <Updated>
-            NADAC as of {c.nadacAsOf} · Medicare {c.partDYear} · Class from the FDA label
-          </Updated>
-        </Card>
-      )}
-
-      <Card>
-        <SectionHeading>
-          <span className="flex items-center gap-2">
-            <PiggyBank aria-hidden className="size-5 text-gold-text" /> Ways to save
-          </span>
-        </SectionHeading>
-        <ul className="space-y-2">
-          {genericSold && c.brandRange && c.genericRange && (
-            <li className="flex gap-2">
-              <Info aria-hidden className="mt-1 size-4 shrink-0 text-muted" />
-              <span>A generic is available and costs pharmacies far less than the brand ({money(c.genericRange.min)} vs {money(c.brandRange.min)} per unit).</span>
-            </li>
-          )}
-          {[
-            ["Discount card prices", `https://www.goodrx.com/${encodeURIComponent(c.drug.toLowerCase().replace(/\s+/g, "-"))}`, "GoodRx shows cash prices at nearby pharmacies."],
-            ["Mark Cuban Cost Plus Drugs", "https://costplusdrugs.com/medications/", "Online pharmacy selling many generics at cost plus 15%."],
-            ["Manufacturer assistance", "https://medicineassistancetool.org/", `Patient assistance and copay programs${c.availability?.brandHolders.length ? ` (brand: ${c.availability.brandHolders.slice(0, 2).map(titleCase).join(", ")})` : ""}.`],
-            ["NeedyMeds", "https://www.needymeds.org/", "Free directory of assistance programs and drug discount cards."],
-            ["Medicare Extra Help", "https://www.ssa.gov/medicare/part-d-extra-help", "Lowers Medicare drug costs for people with limited income."],
-            ["Medicare Prescription Payment Plan", "https://www.medicare.gov/prescription-payment-plan", "Spreads Medicare drug costs into monthly payments."],
-            ["State drug assistance programs", "https://www.medicare.gov/basics/costs/help/drug-costs", "Some states help pay drug costs."],
-          ].map(([title, href, text]) => (
-            <li key={title} className="flex gap-2">
-              <ExternalLink aria-hidden className="mt-1 size-4 shrink-0 text-muted" />
-              <span>
-                <SourceLink href={href}>{title}</SourceLink>: {text}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-sm text-muted">Links open other websites. Vynthera does not share any patient information with them.</p>
-      </Card>
+        </div>
+      </details>
     </div>
   );
 }
