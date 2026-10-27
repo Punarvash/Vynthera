@@ -88,6 +88,11 @@ export async function SummaryCard({ drug, condition }: { drug: string; condition
             <LabelStatusBadge status={evidence.labelStatus} />
           </p>
           <p className="text-[0.95rem] text-muted">{labelStatusText(evidence.labelStatus, evidence.drug, condition)}</p>
+          {evidence.labelStatus.on && (
+            <p className="text-sm">
+              <SourceLink href={evidence.labelStatus.on.url}>Read the {evidence.labelStatus.on.title} label</SourceLink>
+            </p>
+          )}
         </Tile>
       </div>
     </Card>

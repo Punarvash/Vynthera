@@ -147,14 +147,27 @@ export interface TargetMechanism {
   targets: string[];
 }
 
-export type LabelStatus =
+/** The FDA label a finding comes from. */
+export interface LabelRef {
+  title: string;
+  manufacturer: string;
+  url: string;
+}
+
+export type LabelStatus = (
   | { kind: "approved"; matched: string }
   /** covers: the label approves a category that includes the condition (e.g. ear, nose and throat infections). */
   | { kind: "likely-approved"; matched: string; covers?: string; byAi?: boolean }
   | { kind: "limitation"; matched: string }
   | { kind: "off-label" }
   | { kind: "no-condition" }
-  | { kind: "no-label" };
+  | { kind: "no-label" }
+) & {
+  /** The label whose indications decided the status. */
+  on?: LabelRef;
+  /** How many of the drug's labels were checked. */
+  checked?: number;
+};
 
 export type GradeLevel = "high" | "moderate" | "low" | "very-low" | "insufficient" | "needs-condition";
 

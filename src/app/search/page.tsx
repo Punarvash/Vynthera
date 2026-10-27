@@ -10,7 +10,7 @@ import { cleanCondition } from "@/lib/evidence";
 import { drugHref } from "@/lib/links";
 import { runSearch, type DrugMatch } from "@/lib/search";
 import { baseDrugName } from "@/lib/sources/openfda";
-import { didYouMean } from "@/lib/suggest";
+import { didYouMean, splitQuery, type QueryParts } from "@/lib/suggest";
 import { titleCase } from "@/lib/text";
 
 export const metadata: Metadata = { title: "Search" };
@@ -59,6 +59,18 @@ function DrugCards({ drugs, condition }: { drugs: DrugMatch[]; condition?: strin
   );
 }
 
+/** One search term, with a link that removes it (searching the other term alone). */
+function Chip({ label, value, without }: { label: string; value: string; without: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface py-1 pl-3 pr-1 text-[0.95rem]">
+      <span className="text-muted">{label}:</span> <strong>{value}</strong>
+      <Link href={`/search?${new URLSearchParams({ q: without })}`} aria-label={`Remove ${label.toLowerCase()} ${value}`} className="rounded-full px-2 text-muted hover:bg-cream hover:text-ink">
+        ✕
+      </Link>
+    </span>
+  );
+}
+
 function phaseNote(maxPhase?: number): string | undefined {
   if (maxPhase === undefined) return undefined;
   return maxPhase >= 4 ? "Approved, or in phase 4 trials, for this or a closely related condition (any country)" : `Studied up to phase ${maxPhase}`;
@@ -66,13 +78,16 @@ function phaseNote(maxPhase?: number): string | undefined {
 
 async function Results({ searchParams }: { searchParams: PageProps<"/search">["searchParams"] }) {
   const sp = await searchParams;
-  const q = cleanCondition(sp.q);
-  const condition = cleanCondition(sp.condition);
-  if (!q) {
-    return <p>Type a drug, condition or mechanism to search.</p>;
+  const typed = cleanCondition(sp.q);
+  if (!typed) {
+    return <p>Type a drug, a condition, or both (for example &ldquo;metformin for PCOS&rdquo;).</p>;
   }
+  // One box: "metformin for PCOS" (or "metformin pcos") searches the drug, with the condition applied to its page.
+  const parts = cleanCondition(sp.condition) ? {} : await splitQuery(typed).catch(() => ({}) as QueryParts);
+  const q = parts.drug ?? typed;
+  const condition = cleanCondition(sp.condition) ?? parts.condition;
 
-  const [r, suggestion] = await Promise.all([runSearch(q), didYouMean(q).catch(() => null)]);
+  const [r, suggestion] = await Promise.all([runSearch(q), parts.drug ? Promise.resolve(null) : didYouMean(q).catch(() => null)]);
 
   // When the query is a condition, carry it to the drug page so off-label status can be checked.
   const asCondition = condition ?? (!r.exactDrug && (r.byIndication.length || r.disease) ? q : undefined);
@@ -134,9 +149,30 @@ async function Results({ searchParams }: { searchParams: PageProps<"/search">["s
 
   // Offer the likely intended term when the query is not itself a known drug or condition.
   const offer = suggestion && !r.exactDrug && !(r.disease && r.disease.name.toLowerCase() === q.toLowerCase()) ? suggestion : null;
+  const pairCard = condition && r.exactDrug && (
+    <section className="mb-8">
+      <p className="mb-3 flex flex-wrap items-center gap-2" aria-label="Search terms">
+        <Chip label="Drug" value={titleCase(r.exactDrug)} without={condition} />
+        <Chip label="Condition" value={condition} without={r.exactDrug} />
+      </p>
+      <Link
+        href={drugHref(r.exactDrug, condition)}
+        className="flex items-center justify-between gap-3 rounded-lg border border-gold bg-surface px-5 py-4 hover:bg-cream/50"
+      >
+        <span>
+          <span className="block text-xl font-semibold text-navy">
+            {titleCase(r.exactDrug)} for {condition}
+          </span>
+          <span className="block text-muted">Evidence, FDA approval status, specialists and patient information for this use.</span>
+        </span>
+        <ChevronRight aria-hidden className="size-6 shrink-0 text-muted" />
+      </Link>
+    </section>
+  );
   return (
     <>
       <SourceProblems problems={r.problems} />
+      {pairCard}
       {offer && (
         <p className="mb-6 rounded-lg border-l-4 border-gold bg-surface px-4 py-3 text-lg">
           Did you mean{" "}
@@ -164,7 +200,9 @@ async function Results({ searchParams }: { searchParams: PageProps<"/search">["s
 
 async function HeaderSearch({ searchParams }: { searchParams: PageProps<"/search">["searchParams"] }) {
   const sp = await searchParams;
-  return <SearchForm size="compact" defaultQuery={cleanCondition(sp.q) ?? ""} defaultCondition={cleanCondition(sp.condition) ?? ""} />;
+  const q = cleanCondition(sp.q) ?? "";
+  const condition = cleanCondition(sp.condition);
+  return <SearchForm size="compact" defaultQuery={condition ? `${q} for ${condition}` : q} />;
 }
 
 export default function SearchPage({ searchParams }: PageProps<"/search">) {
