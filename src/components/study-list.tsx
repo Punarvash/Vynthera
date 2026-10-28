@@ -93,7 +93,7 @@ export function StudyList({
     });
   }
 
-  const select = "rounded-md border border-[#cbbd9f] bg-surface px-2 py-1.5 text-[0.95rem]";
+  const select = "rounded-md border border-[#b7c2d1] bg-surface shadow-[inset_0_1px_2px_rgba(31,36,44,0.04)] transition focus:ring-4 focus:ring-sky/30 focus-visible:outline-none px-2 py-1.5 text-[0.95rem]";
   return (
     <div>
       <div role="group" aria-label="Filter and sort studies" className="mb-3 flex flex-wrap items-center gap-2">

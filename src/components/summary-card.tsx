@@ -7,8 +7,8 @@ import { firstSentences, truncate } from "@/lib/text";
 
 function Tile({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-line bg-cream/60 p-4">
-      <h3 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-gold-text">{heading}</h3>
+    <div className="rounded-xl border border-line/80 border-t-[3px] border-t-gold bg-gradient-to-b from-cream to-surface p-4">
+      <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate">{heading}</h3>
       <div className="space-y-1.5">{children}</div>
     </div>
   );

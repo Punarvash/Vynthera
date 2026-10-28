@@ -1,21 +1,26 @@
 @import "tailwindcss";
 
-/* Vynthera palette: ink #101418, navy #2C3E50, gold #B08D57 (the single accent), sand #DCC9A6, cream #FBF6EE.
+/* Vynthera palette: charcoal #1F242C (text), navy #213B55 (primary), royal blue #1B4B8A (the accent), slate #627B9E,
+   sky #8DB9EC, beige #D4CDBE. A light theme on a soft blue-grey page with white cards.
+   The token names "gold" and "cream" are kept so every component picks up the new accent and tint unchanged.
    Badge colours are semantic (funding, approval) and chosen for WCAG AA contrast. */
 :root {
   color-scheme: light;
-  --ink: #101418;
-  --navy: #2c3e50;
-  --navy-hover: #22313f;
-  --gold: #b08d57;
-  --gold-text: #7a5c2e;
-  --sand: #dcc9a6;
-  --cream: #fbf6ee;
+  --ink: #1f242c;
+  --navy: #213b55;
+  --navy-hover: #182c41;
+  --gold: #1b4b8a;
+  --gold-text: #1b4b8a;
+  --sand: #d4cdbe;
+  --cream: #edf1f7;
+  --page: #e5e9ef;
   --surface: #ffffff;
-  --muted: #4a5260;
-  --line: #e8dfcf;
-  /* Single-series chart fill: a brand-adjacent blue that passes the chart palette checks. */
-  --chart: #2766a8;
+  --muted: #4b5a70;
+  --line: #d3dae4;
+  --slate: #627b9e;
+  --sky: #8db9ec;
+  /* Single-series chart fill. */
+  --chart: #1b4b8a;
 }
 
 @theme inline {
@@ -30,19 +35,43 @@
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-chart: var(--chart);
+  --color-page: var(--page);
+  --color-slate: var(--slate);
+  --color-sky: var(--sky);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-serif-display), ui-serif, Georgia, serif;
+  --font-display: var(--font-display-face), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 html {
   font-size: 16px;
+  /* Anchored sections stay clear of the sticky header. */
+  scroll-padding-top: 1rem;
+}
+
+@media (min-width: 40rem) {
+  html {
+    scroll-padding-top: 5.5rem;
+  }
 }
 
 body {
-  background: var(--cream);
+  background: var(--page);
   color: var(--ink);
   font-family: var(--font-sans);
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: #cfe0f6;
 }
 
 :focus-visible {

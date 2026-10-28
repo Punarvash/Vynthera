@@ -28,7 +28,7 @@ export function SearchForm({
           defaultValue={defaultQuery}
           placeholder={large ? "e.g. metformin, polycystic ovary syndrome, GLP-1 agonist" : "Drug, condition or mechanism"}
           className={clsx(
-            "w-full rounded-lg border border-[#cbbd9f] bg-surface pl-10 text-ink placeholder:text-[#6b6f78] focus:border-navy",
+            "w-full rounded-lg border border-[#b7c2d1] bg-surface shadow-[inset_0_1px_2px_rgba(31,36,44,0.04)] transition focus:ring-4 focus:ring-sky/30 focus-visible:outline-none pl-10 text-ink placeholder:text-[#6b6f78] focus:border-gold",
             large ? "py-3.5 pr-4 text-lg" : "py-2 pr-3",
           )}
         />
@@ -44,7 +44,7 @@ export function SearchForm({
           defaultValue={defaultCondition}
           placeholder={large ? "e.g. polycystic ovary syndrome" : "Condition (optional)"}
           className={clsx(
-            "w-full rounded-lg border border-[#cbbd9f] bg-surface px-3 text-ink placeholder:text-[#6b6f78] focus:border-navy",
+            "w-full rounded-lg border border-[#b7c2d1] bg-surface shadow-[inset_0_1px_2px_rgba(31,36,44,0.04)] transition focus:ring-4 focus:ring-sky/30 focus-visible:outline-none px-3 text-ink placeholder:text-[#6b6f78] focus:border-gold",
             large ? "py-3" : "py-2",
           )}
         />
@@ -52,7 +52,7 @@ export function SearchForm({
       <button
         type="submit"
         className={clsx(
-          "rounded-lg bg-navy font-semibold text-cream hover:bg-navy-hover",
+          "rounded-lg bg-navy font-semibold text-white shadow-sm transition-all hover:bg-navy-hover hover:shadow-md",
           large ? "w-full py-3.5 text-lg sm:w-auto sm:px-10" : "px-4 py-2",
         )}
       >

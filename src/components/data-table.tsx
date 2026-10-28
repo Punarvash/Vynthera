@@ -34,7 +34,7 @@ export function DataTable<T>({ rows, columns, rowKey, caption, highlight }: {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={rowKey(r)} className={`border-t border-line ${highlight?.(r) ? "bg-[#f5eddf] font-semibold" : ""}`}>
+              <tr key={rowKey(r)} className={`border-t border-line ${highlight?.(r) ? "bg-[#e8eff8] font-semibold" : ""}`}>
                 {columns.map((c, i) => (
                   <td key={i} className={`px-3 py-1.5 ${c.align === "right" ? "text-right tabular-nums" : ""}`}>
                     {c.cell(r)}
@@ -47,7 +47,7 @@ export function DataTable<T>({ rows, columns, rowKey, caption, highlight }: {
       </div>
       <ul className="space-y-2 sm:hidden" aria-label={caption}>
         {rows.map((r) => (
-          <li key={rowKey(r)} className={`rounded-lg border border-line p-3 ${highlight?.(r) ? "bg-[#f5eddf]" : "bg-surface"}`}>
+          <li key={rowKey(r)} className={`rounded-lg border border-line p-3 ${highlight?.(r) ? "bg-[#e8eff8]" : "bg-surface"}`}>
             <p className="font-semibold">{primary.cell(r)}</p>
             <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
               {rest.map((c, i) => (

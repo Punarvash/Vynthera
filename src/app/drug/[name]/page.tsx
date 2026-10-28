@@ -28,7 +28,7 @@ async function DrugHeading({ drug }: { drug: string }) {
   return (
     <div className="space-y-2">
       <SourceProblems problems={problems} />
-      <h1 className="font-serif text-4xl font-semibold">{titleCase(label?.genericName ?? drug)}</h1>
+      <h1 className="font-display text-4xl font-extrabold tracking-tight text-navy">{titleCase(label?.genericName ?? drug)}</h1>
       {label ? (
         <p className="text-muted">
           {label.brandNames.length > 0 && <>Brand: {label.brandNames.slice(0, 4).join(", ")} · </>}
@@ -60,7 +60,7 @@ function ConditionForm({ drug, condition, tab }: { drug: string; condition?: str
           kinds={["condition"]}
           defaultValue={condition ?? ""}
           placeholder="e.g. polycystic ovary syndrome"
-          className="w-full rounded-lg border border-[#cbbd9f] bg-surface px-3 py-2 focus:border-navy"
+          className="w-full rounded-lg border border-[#b7c2d1] bg-surface shadow-[inset_0_1px_2px_rgba(31,36,44,0.04)] transition focus:ring-4 focus:ring-sky/30 focus-visible:outline-none px-3 py-2 focus:border-gold"
         />
       </div>
       <button type="submit" className="rounded-lg border border-navy bg-surface px-4 py-2 font-semibold text-navy hover:bg-cream">

@@ -24,7 +24,7 @@ function formatPhone(p?: string): string | undefined {
 }
 
 function FilterForm({ drug, condition, filters }: { drug: string; condition?: string; filters: SpecialistFilters }) {
-  const field = "w-full rounded-lg border border-[#cbbd9f] bg-surface px-3 py-2 focus:border-navy";
+  const field = "w-full rounded-lg border border-[#b7c2d1] bg-surface shadow-[inset_0_1px_2px_rgba(31,36,44,0.04)] transition focus:ring-4 focus:ring-sky/30 focus-visible:outline-none px-3 py-2 focus:border-gold";
   return (
     <form method="get" action={`/drug/${encodeURIComponent(drug)}`} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[7rem_7rem_1fr_1fr_auto] lg:items-end">
       <input type="hidden" name="tab" value="specialists" />

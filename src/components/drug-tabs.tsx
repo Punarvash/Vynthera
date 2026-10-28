@@ -25,13 +25,13 @@ export function DrugTabs({ initial, panels, lazy = [] }: { initial: TabId; panel
     <Tabs.Root defaultValue={initial} onValueChange={onChange}>
       <Tabs.List
         aria-label="Drug information"
-        className="no-print -mx-4 flex overflow-x-auto border-b border-line px-4 [scrollbar-width:thin]"
+        className="no-print flex gap-1 overflow-x-auto rounded-xl border border-line/80 bg-surface p-1.5 shadow-[0_1px_2px_rgba(31,36,44,0.05)] [scrollbar-width:thin]"
       >
         {TAB_ORDER.map((t) => (
           <Tabs.Trigger
             key={t.id}
             value={t.id}
-            className="shrink-0 border-b-[3px] border-transparent px-4 py-3 text-base font-semibold text-muted hover:text-ink data-[state=active]:border-gold data-[state=active]:text-ink"
+            className="shrink-0 rounded-lg px-4 py-2.5 text-[0.95rem] font-semibold text-muted transition-colors hover:bg-cream hover:text-ink data-[state=active]:bg-navy data-[state=active]:text-white data-[state=active]:shadow-sm"
           >
             {t.label}
           </Tabs.Trigger>

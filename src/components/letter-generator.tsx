@@ -114,7 +114,7 @@ function Field({
   hint?: string;
 }) {
   const id = useId();
-  const cls = "w-full rounded-md border border-[#cbbd9f] bg-surface px-3 py-2 text-ink focus:border-navy";
+  const cls = "w-full rounded-md border border-[#b7c2d1] bg-surface shadow-[inset_0_1px_2px_rgba(31,36,44,0.04)] transition focus:ring-4 focus:ring-sky/30 focus-visible:outline-none px-3 py-2 text-ink focus:border-gold";
   return (
     <div>
       <label htmlFor={id} className="mb-1 block font-medium">
@@ -185,7 +185,7 @@ export function LetterGenerator(props: Props) {
           <button
             type="button"
             onClick={() => dialogRef.current?.close()}
-            className="rounded-md p-2 hover:bg-[#f1ebe0]"
+            className="rounded-md p-2 hover:bg-[#e7edf5]"
             aria-label="Close letter tool"
           >
             <X aria-hidden className="size-5" />
@@ -280,7 +280,7 @@ export function LetterGenerator(props: Props) {
                 value={letter}
                 onChange={(e) => setLetter(e.target.value)}
                 rows={22}
-                className="w-full rounded-md border border-[#cbbd9f] bg-surface p-4 font-serif text-[1.05rem] leading-relaxed"
+                className="w-full rounded-md border border-[#b7c2d1] bg-surface shadow-[inset_0_1px_2px_rgba(31,36,44,0.04)] transition focus:ring-4 focus:ring-sky/30 focus-visible:outline-none p-4 font-serif text-[1.05rem] leading-relaxed"
               />
               <div className="flex flex-wrap gap-3">
                 <Button type="button" onClick={print}>

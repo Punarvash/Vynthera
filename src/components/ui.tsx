@@ -8,11 +8,11 @@ export type BadgeTone = "industry" | "independent" | "neutral" | "offlabel" | "a
 const BADGE_TONES: Record<BadgeTone, string> = {
   industry: "bg-[#fdecd3] text-[#7a3e00] border-[#f2c58a]",
   independent: "bg-[#dff1e6] text-[#1d5b36] border-[#a9d8bb]",
-  neutral: "bg-[#eeebe5] text-[#3f3a34] border-[#d8d2c7]",
+  neutral: "bg-[#eceff3] text-[#2e3a4a] border-[#d3d9e2]",
   offlabel: "bg-[#fbe3e1] text-[#8a1c12] border-[#efb1aa]",
   approved: "bg-[#dff1e6] text-[#1d5b36] border-[#a9d8bb]",
   preprint: "bg-[#ede5f7] text-[#4b2a7a] border-[#cdb9ea]",
-  ai: "bg-[#f5eddf] text-[#5c4520] border-[#dcc9a6]",
+  ai: "bg-[#e8eff8] text-[#1b4b8a] border-[#c3d4ea]",
   caution: "bg-[#fff4d6] text-[#6b4e00] border-[#f0d58a]",
 };
 
@@ -31,11 +31,11 @@ export function Badge({ tone, children, title }: { tone: BadgeTone; children: Re
 }
 
 const BUTTON_BASE =
-  "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-base font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[0.95rem] font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed";
 const BUTTON_VARIANTS = {
-  primary: "bg-navy text-cream hover:bg-navy-hover",
-  secondary: "border border-navy text-navy bg-surface hover:bg-cream",
-  ghost: "text-navy hover:bg-[#f1ebe0]",
+  primary: "bg-navy text-white shadow-sm hover:bg-navy-hover hover:shadow",
+  secondary: "border border-line bg-surface text-navy shadow-sm hover:border-slate hover:bg-cream",
+  ghost: "text-navy hover:bg-[#e7edf5]",
 };
 
 export function Button({
@@ -55,7 +55,12 @@ export function ButtonLink({
 }
 
 export function Card({ className, ...props }: ComponentProps<"div">) {
-  return <div className={clsx("rounded-xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgba(16,20,24,0.04)]", className)} {...props} />;
+  return (
+    <div
+      className={clsx("rounded-2xl border border-line/80 bg-surface p-5 shadow-[0_1px_2px_rgba(31,36,44,0.05),0_4px_16px_-6px_rgba(33,59,85,0.12)] sm:p-6", className)}
+      {...props}
+    />
+  );
 }
 
 /** A link to an original source. Opens in a new tab and says so to screen readers. */
@@ -65,7 +70,7 @@ export function SourceLink({ href, children, className }: { href: string; childr
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={clsx("inline-flex items-center gap-1 font-medium text-navy underline hover:text-gold-text", className)}
+      className={clsx("inline-flex items-center gap-1 font-medium text-gold-text underline decoration-sky decoration-2 underline-offset-[3px] hover:text-navy hover:decoration-navy", className)}
     >
       {children}
       <ExternalLink aria-hidden className="size-3.5 shrink-0" />
@@ -76,15 +81,15 @@ export function SourceLink({ href, children, className }: { href: string; childr
 
 export function SectionHeading({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-      <h3 className="text-lg font-semibold text-ink">{children}</h3>
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3">
+      <h3 className="font-display text-lg font-bold text-ink">{children}</h3>
       {action}
     </div>
   );
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={clsx("animate-pulse rounded-md bg-[#efe7d8]", className)} />;
+  return <div aria-hidden className={clsx("animate-pulse rounded-md bg-[#e1e7ef]", className)} />;
 }
 
 export function LoadingBlock({ label, lines = 3 }: { label: string; lines?: number }) {

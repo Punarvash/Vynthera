@@ -76,11 +76,11 @@ export function AiBadge({ children = "AI-generated summary, verify with sources"
 
 const GRADE_TONE: Record<GradeLevel, string> = {
   high: "bg-[#1d5b36] text-white",
-  moderate: "bg-[#3d6e8f] text-white",
+  moderate: "bg-[#1b4b8a] text-white",
   low: "bg-[#8a5a00] text-white",
   "very-low": "bg-[#8a1c12] text-white",
-  insufficient: "bg-[#5b5650] text-white",
-  "needs-condition": "bg-[#5b5650] text-white",
+  insufficient: "bg-[#5a6576] text-white",
+  "needs-condition": "bg-[#5a6576] text-white",
 };
 
 export function GradePill({ level, label }: { level: GradeLevel; label: string }) {

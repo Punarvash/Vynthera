@@ -75,7 +75,7 @@ function LabelTableView({ table }: { table: LabelTable }) {
         </thead>
         <tbody>
           {body.map((row, r) => (
-            <tr key={r} className="odd:bg-surface even:bg-[#fdfbf7]">
+            <tr key={r} className="odd:bg-surface even:bg-[#f7f9fc]">
               {row.map((c, i) => (
                 <td key={i} className="border-b border-line px-3 py-1.5 align-top">
                   {c}
@@ -353,7 +353,7 @@ export async function PatientTab({ drug, condition }: { drug: string; condition?
     <article className="space-y-4">
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-serif text-3xl font-semibold">
+          <h3 className="font-display text-3xl font-semibold">
             {drugName}
             {condition ? ` for ${condition}` : ""}
           </h3>
