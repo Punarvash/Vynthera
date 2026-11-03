@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vynthera</title>
+<meta name="description" content="Vynthera gives physicians the evidence, FDA approval status, real costs, experienced specialists and a patient handout for any drug, with every claim linked to its public source.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a navy masthead band holding a live-looking drug page, then alternating light sections on a cool blue-grey ground. */
+:root {
+  --page: #e8ecf1;
+  --surface: #ffffff;
+  --tint: #edf1f7;
+  --ink: #1f242c;
+  --muted: #4b5a70;
+  --line: #d3dae4;
+  --navy: #213b55;
+  --royal: #1b4b8a;
+  --slate: #627b9e;
+  --sky: #8db9ec;
+  --beige: #d4cdbe;
+  --band-ink: #ffffff;
+  --band-muted: #cdd9e8;
+  --ok-bg: #dff1e6; --ok-fg: #1d5b36;
+  --warn-bg: #fbe3e1; --warn-fg: #8a1c12;
+  --shadow: 0 1px 2px rgba(31,36,44,.05), 0 10px 30px -14px rgba(33,59,85,.28);
+  --display: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #141a22; --surface: #1b232e; --tint: #212b38; --ink: #e8edf3; --muted: #a9b6c7; --line: #2e3a49;
+    --navy: #0f2236; --royal: #8db9ec; --slate: #9db1cb; --sky: #8db9ec; --beige: #6f6a60;
+    --band-ink: #ffffff; --band-muted: #b9c9dc;
+    --ok-bg: #173a27; --ok-fg: #a8e0bd; --warn-bg: #43201c; --warn-fg: #f3b7af;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #141a22; --surface: #1b232e; --tint: #212b38; --ink: #e8edf3; --muted: #a9b6c7; --line: #2e3a49;
+  --navy: #0f2236; --royal: #8db9ec; --slate: #9db1cb; --sky: #8db9ec; --beige: #6f6a60;
+  --band-ink: #ffffff; --band-muted: #b9c9dc;
+  --ok-bg: #173a27; --ok-fg: #a8e0bd; --warn-bg: #43201c; --warn-fg: #f3b7af;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+body { background: var(--page); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--navy); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; letter-spacing: -0.015em; margin: 0; }
+p { margin: 0; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; border-radius: 6px; }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.eyebrow { font-family: var(--display); font-size: .78rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--royal); }
+.lede { color: var(--muted); font-size: 1.08rem; max-width: 62ch; }
+section { padding-block: 88px; }
+.section-head { display: grid; gap: 12px; margin-bottom: 40px; max-width: 760px; }
+.section-head h2 { font-size: clamp(1.75rem, 3.2vw, 2.5rem); font-weight: 800; }
+
+/* Header */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--navy); color: var(--band-ink); border-bottom: 1px solid rgba(255,255,255,.08); }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 14px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--display); font-weight: 800; font-size: 1.3rem; letter-spacing: -0.02em; }
+.logo { width: 28px; height: 28px; background: currentColor; -webkit-mask: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAWk0lEQVR42u1ceXCd1XX/nfst7z097ZtlW3g3eAvGmMWEshhCEggpLSkMaWgInUnbtPUkTZMyOAECIaSE0IaESTI0mztMCGimhDTNAsbBmNTgBbCxLcfYli3vWixL1lu/797TP77tfpK8S0Jq3mFsWU9PvHPPfn7n3A8oUYlKVKISlahEJSpRiUpUohKVqEQlGjWi+LfXmMuWXVt2wVXXKnR0AuhAJwB0AmgAGtA4xP+iA4i93hG8fRB1+l8b0Ij167e6K1Y8mB9rAnnuuedSWzs6DI//xtiZTniw0zgvAOzd20aPPXZPBoAaUgETpl4+rWlC48pc0U05rgSzBBhgGCASEMIAkfcrzAoAe/8GAMUgYigGmBlE3g+IBEAEEIGZAVYQ5KKQzx9Nsrhp1641+8aK8K+4+o5FPdnCs4V8Lh2cDeydlTmQGHlng3cmACDWJUkgQWAmsJJgJUHkgshGWcreXzh25IadO9f1Be82Y7bcvm6PSUte6Mk5n1dKAsIEIEBEYFAg6YArMOApxBd6wASBvJ+BvNcYYO8vAAoEBcu2J9lV6eVE9BkOT/fe0bx58+y2g0ee6M/L2dJ1wOx6Z/JOEQqXw/PxwPDhvUOIUBvMDGYXpAqwbBvVsvrxfZrwAUDo3zAzmuqaH2qqr91h2kkIYftWDwgoECSIJci3fvJ+CUSexVPwHwWsKoCVL/TgfQbISEEqE9m8c/eCi268eixY/7FCzaezudxV0i165yUDggwYQkCQZ4REvjKIIYh931cg8oyKoADlAuwCrEBEEEYCZKVRUVH+5kP33PndgZ8rBr6wcWNLbyplL7etpCdhlmDpQikXzBIcBh4ReCBUaMDeTz3L0f74Fk5+XFLsgtnF8Vwu0dXX981ly5Yl3kvhv++SW2cUCu5XnWIGUA5YqdCjOfBe6N6v/Nf8EMyeOfqn90OW9JQAF+mkKVOJ5PK77757UM4zhmKo8+CO1rqGKQsKxfw813WidEGBe9GATM5gDkOizzyFYTRwTQqV5B+QJcBy8p693YXeo+2vvhfCZ4AerWz+fl+2eInvp9CCP6JDxMOkH518j4/LxLM3BrMEgVFRlnimvfV3jw31+eJEjJnC+HIqkegmAkiY3h/fFWPsw0tQpL8UU5CftNjzDA6zhPdatuCg4MgvLlh885z3QgFLrrnjE8dzxduZCESmb04qZuWsRXyOlS8Ueonu6UGWIC4inTS7K8vsB0+U54wTxsTuPd1Tps3vzzvqI5INz/pZ+YnFtwwCiMnPB37CDSqDIORoBhX8OHqJIEhASjfhFItTbvrgFS3btm0btYx8111faHqrddeKTDZfy5q1EwAeUOF4BuNVPmFaDn+Fo5xIUaVkGTaqK9P37tyy6tcn4kGcjMEbrpr9w8a6qjcMoQB2vdKTOWbtQaXA0MPPIJcAiMHkVwZ+RUREgDAgyYYU9p/ubC/cNprW//rmrQ/39vXPUsrx4zZHIZZpkCeDOPTkyNr1fBcZlWEI1NRWvlXW2PCjM2jEBtNV1338sh17Dqw+djyb1KpK76Ni4YbiBTFrZo+gDPULVIrcmfzcYghGdbpsr2HKK9q3rzk00sKfc9GNNxzu7PmfvFO0wAJhlc2RYFjj0isiGHok8crzoN8Jwq13Htsit646/eHd76x8+WR8GKdidF/blgM1ddObHOlexprTEJPnpgNyQlCmhYYU1v9+LgiFT2E9DQaUYhSdQnXSNCv6etp/OZLCnzDhwnRRWM9lC2piKGwtfkchh6OymsLT+UcLXgySsPAVpmCQRGNt1XO7t6x87FS8iNOoElCb5vsSdmKnMJJeIg6Z9GMf6Y0g64YfVglBpcC+e1PMbb1/K+kgk3M+dcHCD107YtgLEVI1Ez7fny28z6vXozIzDDqhzZAXNom1cEFRyOWgAvRKT2IXrBzYptXpFAvLT4cfcTpv2rRp9bGa8uR9qQQAkvHaPqq7tKgWdYxhiTagV9A9JuwnyEZBKduRzjeWLFmSGgkFXH39nZfkHedLxWIRSqoYzBC38ABtYM/bgyMTg4l9wQeVUgTLJG0TzZMaHmvfsaZt2BQAALu2rfxZwhDPCjLClKuLUbcREIXFm2cd3kGCU0TJmCIvEQJEBkAmunsLlx7sSi4b9pqf2di+u/2R45lsQlBUONCA7obhC1mvcmLdvq+ssOwRICEgTBvJZGq9bDv+vdPl6bQVoJjRUFd+X8LkoxACJAyICHyIwhBHiSsqFhhRgUGxRBeAWmFGUAzHcVBwi/cuuvzP5g5r4l1406cdiRsUCx9gDPJYvH0h/4Wo5qfQC6Lexm9Mg69MSCctd8Hc85dv61zdf7o8GWdygMMH3j06edqCPqnoZsd1QiGH5ZnuwgSIIEdTVEtEeZtCaGKAqsHKhePKpEE84/aPffC5jRs3qnMV/qz3XdPcdSz7n4VisTKyDN2HKeSRdd9gGlAJ6aHWe11AwhCMVCL5k81v/PyJM+FLnOlBPvHnd/wkIXgdaaGfAivREpfn8gStZws1wfrBYxncf5UMKDAyxeKNm1p7PzEciTefp38vus5kpfw+hOI8sBZ+dHCSg2xGUYEReDkFIZUVkiY6CeorQ1jUmQxkTo+az7/60r7+4hpXykSUwAKDYDCTH/P9lwYYeviabm8c4OxBzvDCXHnC3N9Umb7inXd+s/+sQ8+lH725o7PvF9lsNmSFdasOQTWOdQBe6InUQhTvLRmAIAXTNFBfWbmsbfuqJ8+UN3E2B9q/49X1tVXp/zCtBEBGxFlQK2sNC8U9WENFw0GBH5o4rMVJSyhFxc39Lh4iOjvhL77m5vpsJvdEvpAl0sQ/wBy0+B63lNAH/Jqf2S+lySscIGykk8m1Kid/cDb8ibO1qobyiq9YBu3w5g9hzNHwRB4CRIzX0MxDi0NP0EVHIpPPfHLOwg/dclbGsrdveXdPdgYr3duiGp6G+NShuAmEHiUxAkEhnRCysb7hy3v3rs6PqgLWr/959/TpTfcnUykdBPTOxlFHqTOsdzoMFVZOAXAnBGm9A3w8XeJ4NmNkcoVv3nXXZ6vPhMfZc6//QN5x/4EhPU8NhRgXb3x+MQBeCSo8/z3eVw/vF1Coq0z/ZMuGF1adrRyNc0luh9u3b21smj2r4BQu9JIb+ZZFEVYSQxMHJF/o6KmmqPDnHM6Ri8VC7f6DHXT82L6Vp8PbjMUfqOrvy63I5HJTlFKDmsUgR0WxRq/r4XfvPGTCJGIYgpG0zUNNVXV3Hjiwve9sZSjORQFKKTRPrPmqLYxjAUoaxO9IwBym2gBgJBJxL2fSqzqvVeAoJ4AIjssosvjs4qtuv/h0eJs7ffYHC45zKZECCRNMEfgRTLD0EjSO3kYN5KBqhQiAiVSqEnV1dfdu2PDCOS0VnJMCAOC1l5/dYZn8sGlZIGGErs6xiaTy8LmwGeZYQxN5SlDaac0bACITZCaRdzjZ29v/7QsvvCF9Kr76O7t+XV1VtZbMckBY3iw69E3WYHWKO8egYZLWbFGwHSJhC7X2Cz94+KfnKr9zVgAAlBtVT1ZVlv+vEIY3mA4jizaFgdd1hgIPRaHV5BxZaTgED8agDEipcKSr50pKpD53Kp5Wr27pb57c9E+V5YkcwdXmtDKG3SAW+mgAOOEbS9i7KDA7SCfsQlmZ/c9/e8klzrnKzhgOBRw9ulM2Nk1vzeezd7quNBmIH4qiTYm4W+v4RSDwaNYaZhPyi0HlgmUGBUdetPS6W3/17vY3Ok7GV/vuzQeaZyxU2Wz2eunktIkXxbzPG7UivvkQAIUDYr9lCFRVlH1/T+srTw2H7IbFAwBg15aX106aMOEpy7JhiAgfGrozDSCheO3PzAMmbQGgF+UHBRPHs9naTVvefhy33XZKA7rusoXfSRpqK0H5zZ43XiUhfNDQq7bCmbXf2UZ5wIcbiEDCQH1d3Z6Zk877ynDtMhkYRrpw7sVvHsvkbi26qAnnpEESZgrRRNbmqvpGAdGAYsUfhlOIZRBABoQQUKCZzRlqP3pk51snL5dXF5uaZ7bmHfGXTIbhLRdo064AFyKOdcABwkna0CllG6ivqfrc66+1rB0umYnhVMCqVT87UpZK3W8ZAEGGUC00b2AMLi0GA1wc+z4aFQZJMYGCayCXd75+yy2fOe+U3rn11d9VV5WtsGxb2zZRYW0fKVcTeGxyJyFIoqGm+qU505JPD6fMhlUBANC2JfdsRVnyRRJ2GNOjNj7sfLRYHFVGrPUHrM2MhQb9et7khYzebLFh6569DzPzKc+x8KJF96YssYvY8RNxJPSguokwraAaUyH2X16WyFSmE/e0tLTIMa0AYLU7oa76s6mEcTwYYrO/ngjSx5MccwQhvPijlBZzoVthBEYCCkq6cItZHO3p/uTMudfffiqufvnMv3XVVCYfsiwLEIafC/zP8GM9sQIpFSKcHicubNNAwkw8vmHtL94abmkZGAE6tL+1a9K0+elM1r1aKRlr6ePxh4euu2MI/VDQmZ84CXAdF0WncHFN08xn+o+2Z0/GV9fhXVvrJ50/13Gc+UrKMNFTrCoTIKFhVkqipjK5c860iXfv3r2tMNyyEhghaiyb+Gg6ZbUaRhC3hwDKOR5udOg0HI+QPvj2Z7FQGkyg4LjuDIvMR06DLVdx7v6EZfVAGH7jKLTNb22XleANWZKmhOTlK1e29I6EnIyRUsC+fW8V58y/vKOvP/cxx3WI9LHYwCSsDRSEDsbpaZuiKknbCoS3DiIAEvPOn3Px748c+MOek3bI3fu7Zs5amMkV3ZskBys2KoLDWfrbzRIkDEyZNOGFttZXHhgpOY2YBwDAm68925JOGP9lWYZe/J9wNESgwZi8/qq+vRC1zCBhouC4ya6e3idPBzGdOyP5VNIy32BZBFQh3Pr2eDQBMiEEUJ5MHHULcvlI3l8wMMJ0xZUf2NbZ1fdXRcdNkIY2BjPkAHiL3EF3k/iwJOgpov1MffzJYEZjV8/xQk/HrldOxtO2bdtkQ/2UTVIWP14sFmwv6RsgYYEMCyQs2IkkKlKJB3a3vvyLkZTPiCtg1443O+ubZpqulEulVNosIEBAg66ZY/AExVwj2LCmqBSl+P4OSEBKhWLRXTLz/Ete7Dy4/eDJ+DrWvfdgTcOstIR5tTfVs/1ylGCQi5ryxPqahPWPR47sdkZSPgKjQB++5YZvp1PJd5mD5BmFED0qRdiMLtkg8Q6YUXGEZHvDfwYrBcfJJzs7D33zmmvuSp4SpvjIdd9orK97m8wyL/RAQbl52AKObeJfNm9+KTPSsjFGQwEbf7+yMGHi9D2OlLc7EoJi4L/3RQyCglmL+7oXQIMw9BrKRyulhKvkVOnkMz3de187GV/vrFtdmDbjwp2Z/szHHSdrQElYQmFiY8OPd77z8ndGQzajogAAONrZtqOiduoiyTTH686iZS4KrgNpaZdiEHEE2EU1OyO2G6zBCWAJw04snjv/iucPtm/tPulUb39rW2PTtAn5fO4ygoPqqtp9TVVNd+zbvzkzGnIRGEWaPb35CylbdEV9GOulTbSexvGtigjOwKAqibUBb1iWUgrHs7Imk8t/i5lPuU/RWFnzQEVZ8t2EJcAy98DatU93jJZMjNFUwL49W3uqa6emJGOpYtfTv2+54bDGTwzRtQ+KY3MUDXmISbuRIsKBuyABgJEt5Gd968kftGd69r99Mr4OHtyeK6+dekAqYXXuvfFLwOpRu6VDGGV6//v/umLnoR1rj+fc+SHmEizvYvCqIg+RGfS+INhq0zZjtJVfiTJbdNTX1V7+h02/3XNq7hZbwEZnNOVhjLYC9u17q9jYNLtdAXc4btEP/xQNR2Io0YD9ERr8feAUsbAF+BftXLiuTBtCTDje0/48Trk2eEiNtjxGXQEA0Nu9Z0dd4/S52YKzAIAPfkUX4fRkG/UJFFvqDR+FEFyNCtbHSStaCWDlAsTzF1x0xZaD7a2tGGNkvFcfPHnKvA0EvrPgyjKwEeHwvmWz1hTTgNlmUDWRnswH3PHyr8uBhAVFFmWy+YVmeflPC32duZICAHQdfre3vmmWmSvgevY3FaIOl7QyleKdgX4zhzQUNYZZc6Q4H/dnVvU15TV2b3fbb8eSAsR7+eH5VOqJmgr7bUFOhA3F9vApGoz72L03S48uSJN/WzO44hE1B8JHll2wdOE4EjlH/d3iy2/7k5IHBNDwoR1OU+OMw9mCe7tkQUJ45SOYB9VCUUKmcIAeXvzTdlCJNTyJIjSVSEAyW4rV4kVLP/z03m3ri3/0CgCA7q62P8y4YNGMXMG9SKpoQ4GgP+CD9LVNDaRj/6b+EIU1RR4hhACEADPDcfNNxWO9fKxrzys4w8sU/+9CUEAVZakHTYEOsAtAak/C0EaZoXVD26qm2HJv7G67XpIyQykJVkW4hQx6enrurKpaWPlHnwMCWrempW16c8MjZQnyJlJBVxtcD40qUu1mcRwfDR+swdGzirwmz19JVC6UdGFZSZw3ZdLjvb2bjpUUoNH0SVOfStqJtYaZ9B8SZURrLQC8hz8NaIeDOXFY8YioIArXoL3fI0GwEjbK0mWvT1vU/MOxcm7CGKLpc6+7qi8rX8oVZYJZek0U1BDby/H9If0OO/tVEccQPk85yaSdqy1PXNu2bdW6Uhk6BLW1rlpTU1W2wjQYxE64mRx1xvo6IwY8tc1/Lw/c9feuElnCQUNV2Q/HkvDHnAIAIJ/reSgheJ+36aBfb4qzqvcA0O8UhI/CCRTmPf3RNq3dxzP9Xx1r5x1zCtj/7usH6uuqHkmYBEEqejiI/tSS8AJHcOdX01PwgA2Qn0cE0uk0z593wf1Hdq/tGGvnJYxBam5ekioa+E3GMa5WKkjAykc4NezHvzgRbl1HbZdnXX7XXFtV8fP21pdupYGXvkoecAIv2P96bvbsmfekU3aBBMdifDD6Yv+2Ig16ZIi3dQEAihUSFnorkuaXxqLwx0QnfCLat/ud/XX10+uLkpdI10XssWAcf85JND8WfughCIORSCRw3nkTH9yy/r+fH6vnFBjDtPjyCx4pTxiHBLkhnhNdewpuuQjvGAEWBOErwkJleXpjjVnxrbF8RmMsM7d984ZMZdXkPhb2R11tKUuv+eOANfywVEDCsoqzZ077mzWrVmwfy2cc0x4AAE//+Gs/rqkqf8U0DW1xS39sZPQYTe/ihgKRgfrqsmdee3HFb8b6+ca8ApYuXepaoC9agjJgGeI70J9X5yN0wjAhTAuVlZXtzOZ9GAdkjAcmuzt2Hqyuba6RsvB+6TrRw5/CpUV/lCMMJOwkKtNlf797y29/Px7OJjBOaObkyd+oKK/eQ4YNIUzvmpEQ3lPOgye8k0R9ddmvauyOlvFyLmO8MNrevi17/rxLOzJ59TGXDRC85zxDmN5NFygkbaO/prb8LzatW90xXs41bjwAAGZMxHN11RUvGQQAEvqDJi3TQtIQj21Z+8vt4+lM40oBLS0tsnlC7efStuyTTj+UmwXLHIgLSJhiw5WLb/hXjDMyxhvDbTvf7qypm1qbyxeuBLtgpZBKmIX6mspPvbrqR7vG23kExiH1FfH1yvKybUIYsJM2yivKv7dj84u/G49nGZcK6G1/reeCWTO+lkxUoLa6eu+CBfMeZca4JBPjlJZeOftnR7p6b8k7xed/1fLdwyjR6BMzGyUplKhEJSpRiUpUohKVqEQlKlGJSlSiEp02/R+0NuLSln37QQAAAABJRU5ErkJggg==") center/contain no-repeat; mask: url("data:image/png;base64,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") center/contain no-repeat; flex: none; }
+.nav { display: flex; gap: 22px; align-items: center; font-size: .94rem; }
+.nav a { text-decoration: none; color: var(--band-muted); }
+.nav a:hover { color: var(--band-ink); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; padding: 12px 20px; font-family: var(--display); font-weight: 700; font-size: .98rem; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
+.btn-light { background: #ffffff; color: #213b55; box-shadow: 0 6px 18px -8px rgba(0,0,0,.5); }
+.btn-light:hover { transform: translateY(-1px); }
+.btn-ghost { color: var(--band-ink); border: 1px solid rgba(255,255,255,.35); }
+.btn-ghost:hover { background: rgba(255,255,255,.08); }
+.nav .btn { padding: 8px 14px; font-size: .9rem; }
+@media (max-width: 760px) { .nav a:not(.btn) { display: none; } }
+
+/* Hero */
+.hero { background: linear-gradient(160deg, var(--navy) 0%, #1c416b 55%, #1b4b8a 100%); color: var(--band-ink); padding-block: 72px 0; overflow: hidden; }
+.hero-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: end; }
+.hero-copy { padding-bottom: 88px; display: grid; gap: 22px; align-content: start; min-width: 0; }
+.hero h1 { font-size: clamp(2.4rem, 5.2vw, 3.9rem); font-weight: 800; line-height: 1.05; }
+.hero h1 em { font-style: normal; color: var(--sky); }
+.hero .sub { color: var(--band-muted); font-size: 1.15rem; max-width: 52ch; }
+.hero .eyebrow { color: var(--sky); }
+.cta-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.sources-line { font-size: .86rem; color: var(--band-muted); }
+.sources-line b { color: var(--band-ink); font-weight: 600; }
+
+/* Product window */
+.window { background: #f4f6f9; color: #1f242c; border-radius: 16px 16px 0 0; box-shadow: 0 -10px 60px -20px rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); border-bottom: 0; overflow: hidden; min-width: 0; }
+.chrome { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #ffffff; border-bottom: 1px solid #d3dae4; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #d3dae4; }
+.addr { margin-left: 8px; font-family: var(--mono); font-size: .72rem; color: #627b9e; background: #edf1f7; border-radius: 6px; padding: 3px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+.win-body { padding: 20px; display: grid; gap: 14px; }
+.drug-title { font-family: var(--display); font-weight: 800; font-size: 1.6rem; color: #213b55; letter-spacing: -0.02em; }
+.drug-meta { font-size: .82rem; color: #4b5a70; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: #ffffff; border: 1px solid #d3dae4; border-radius: 999px; padding: 3px 10px; font-size: .78rem; color: #213b55; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { background: #ffffff; border: 1px solid #d3dae4; border-top: 3px solid #1b4b8a; border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; min-width: 0; }
+.tile .k { font-size: .66rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #627b9e; }
+.tile .v { font-weight: 600; font-size: .9rem; }
+.tile .s { font-size: .75rem; color: #4b5a70; }
+.pill { display: inline-block; border-radius: 6px; padding: 1px 8px; font-size: .78rem; font-weight: 700; width: fit-content; }
+.pill-low { background: #8a5a00; color: #fff; }
+.pill-off { background: #fbe3e1; color: #8a1c12; border: 1px solid #efb1aa; border-radius: 999px; }
+.tabs { display: flex; gap: 4px; background: #ffffff; border: 1px solid #d3dae4; border-radius: 10px; padding: 4px; overflow-x: auto; }
+.tab { flex: none; font-size: .76rem; font-weight: 600; padding: 6px 10px; border-radius: 7px; color: #4b5a70; }
+.tab.on { background: #213b55; color: #fff; }
+@media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; } .hero-copy { padding-bottom: 8px; } }
+
+/* Problem */
+.problem-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 8px; }
+.q .ask { font-family: var(--display); font-weight: 700; font-size: 1.05rem; }
+.q .where { font-size: .9rem; color: var(--muted); }
+.q .where code { font-family: var(--mono); font-size: .78rem; background: var(--tint); padding: 1px 6px; border-radius: 4px; color: var(--royal); }
+
+/* Tabs feature */
+.features { background: var(--surface); border-block: 1px solid var(--line); }
+.feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.feature { padding: 26px; display: grid; gap: 10px; align-content: start; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.feature:nth-child(3n) { border-right: 0; }
+.feature:nth-last-child(-n+3) { border-bottom: 0; }
+.feature .tabname { display: flex; align-items: center; gap: 10px; }
+.feature .n { font-family: var(--mono); font-size: .75rem; color: var(--slate); }
+.feature h3 { font-size: 1.2rem; font-weight: 700; }
+.feature p { color: var(--muted); font-size: .95rem; }
+.feature ul { margin: 0; padding-left: 18px; color: var(--ink); font-size: .92rem; display: grid; gap: 4px; }
+.feature .src { font-size: .78rem; color: var(--slate); }
+@media (max-width: 900px) { .feature-grid { grid-template-columns: 1fr; } .feature { border-right: 0 !important; border-bottom: 1px solid var(--line) !important; } .feature:last-child { border-bottom: 0 !important; } }
+
+/* Numbers */
+.numbers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.num { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 6px; }
+.num .big { font-family: var(--display); font-weight: 800; font-size: clamp(1.9rem, 3.4vw, 2.6rem); color: var(--royal); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.1; }
+.num .what { font-weight: 600; }
+.num .from { font-size: .82rem; color: var(--muted); }
+@media (max-width: 900px) { .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .numbers { grid-template-columns: 1fr; } }
+
+/* Pipeline */
+.pipeline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: step; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 10px; align-content: start; position: relative; }
+.step::before { counter-increment: step; content: counter(step); font-family: var(--display); font-weight: 800; color: var(--royal); background: var(--tint); width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; }
+.step h3 { font-size: 1.1rem; }
+.step p { color: var(--muted); font-size: .94rem; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: .76rem; padding: 3px 9px; border-radius: 999px; background: var(--tint); color: var(--ink); border: 1px solid var(--line); }
+@media (max-width: 900px) { .pipeline { grid-template-columns: 1fr; } }
+
+/* Trust */
+.trust { background: var(--navy); color: var(--band-ink); }
+.trust .eyebrow { color: var(--sky); }
+.trust .lede { color: var(--band-muted); }
+.trust-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.rule { border: 1px solid rgba(255,255,255,.16); border-radius: 14px; padding: 22px; display: grid; gap: 8px; background: rgba(255,255,255,.04); }
+.rule h3 { font-size: 1.08rem; color: #fff; }
+.rule p { color: var(--band-muted); font-size: .95rem; }
+@media (max-width: 760px) { .trust-grid { grid-template-columns: 1fr; } }
+
+/* Audience + FAQ */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+.who { display: grid; gap: 12px; }
+.who li { list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.who ul { margin: 0; padding: 0; display: grid; gap: 10px; }
+.who b { font-family: var(--display); }
+.who span { display: block; color: var(--muted); font-size: .93rem; }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }
+details + details { margin-top: 10px; }
+summary { cursor: pointer; font-family: var(--display); font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; color: var(--royal); font-weight: 800; }
+details[open] summary::after { content: "–"; }
+details p { margin-top: 10px; color: var(--muted); font-size: .95rem; }
+
+/* CTA + footer */
+.cta { padding-block: 72px; }
+.cta-card { background: linear-gradient(140deg, var(--navy), #1b4b8a); color: var(--band-ink); border-radius: 22px; padding: clamp(28px, 5vw, 56px); display: grid; grid-template-columns: 1.4fr 1fr; gap: 28px; align-items: center; box-shadow: var(--shadow); }
+.cta-card h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); font-weight: 800; }
+.cta-card p { color: var(--band-muted); margin-top: 10px; }
+.cta-card .cta-row { justify-content: flex-end; }
+@media (max-width: 760px) { .cta-card { grid-template-columns: 1fr; } .cta-card .cta-row { justify-content: flex-start; } }
+footer { padding-block: 40px 56px; border-top: 1px solid var(--line); color: var(--muted); font-size: .86rem; }
+footer .wrap { display: grid; gap: 12px; }
+footer .brand { color: var(--ink); font-size: 1.1rem; }
+footer .logo { width: 22px; height: 22px; }
+</style>
+
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} img{max-width:100%}</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Vynthera home"><span class="logo" aria-hidden="true"></span>Vynthera</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#product">Product</a>
+      <a href="#data">Data</a>
+      <a href="#trust">Trust</a>
+      <a href="#faq">FAQ</a>
+      <a class="btn btn-light" href="#pilot">Join the pilot</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">For physicians who prescribe</p>
+        <h1>Every answer about a drug, <em>on one page.</em></h1>
+        <p class="sub">Vynthera brings together the evidence, FDA approval status, what the patient will pay, the specialists with real experience and a plain-language handout for any drug. Every claim links to its public source.</p>
+        <div class="cta-row">
+          <a class="btn btn-light" href="#product">See what’s inside</a>
+          <a class="btn btn-ghost" href="#pilot">Join the pilot</a>
+        </div>
+        <p class="sources-line">Built on <b>FDA</b>, <b>PubMed</b>, <b>ClinicalTrials.gov</b>, <b>CMS Medicare</b>, <b>NADAC</b> and the <b>NPI Registry</b>.</p>
+      </div>
+
+      <div class="window" role="img" aria-label="Illustration of a Vynthera drug page for metformin and polycystic ovary syndrome">
+        <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="addr">vynthera / drug / metformin ? condition = polycystic ovary syndrome</span></div>
+        <div class="win-body">
+          <div>
+            <div class="drug-title">Metformin</div>
+            <div class="drug-meta">Brand: Glucophage · Route: oral · DailyMed label</div>
+          </div>
+          <span class="chip">Shown for: <b>&nbsp;polycystic ovary syndrome</b></span>
+          <div class="tiles">
+            <div class="tile"><span class="k">Mechanism</span><span class="v">Biguanide</span><span class="s">Lowers hepatic glucose production</span></div>
+            <div class="tile"><span class="k">Evidence strength</span><span class="pill pill-low">Low</span><span class="s">GRADE certainty for this use</span></div>
+            <div class="tile"><span class="k">Cost range</span><span class="v">Generic from $0.015 / unit</span><span class="s">Medicare: $7.85 per fill (2024)</span></div>
+            <div class="tile"><span class="k">Off-label status</span><span class="pill pill-off">Off-label</span><span class="s">Checked against the FDA label</span></div>
+          </div>
+          <div class="tabs" aria-hidden="true"><span class="tab on">Evidence</span><span class="tab">Cases</span><span class="tab">Manufacturer</span><span class="tab">Costs</span><span class="tab">Specialists</span><span class="tab">Patient info</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="problem">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The problem</p>
+        <h2>One prescription, five questions, a dozen websites.</h2>
+        <p class="lede">The answers exist in public data. They are scattered across government sites, journals and plan documents that nobody has time to search during a visit.</p>
+      </div>
+      <div class="problem-grid">
+        <div class="q"><p class="ask">Does it work for this patient’s condition?</p><p class="where">Hundreds of studies in <code>PubMed</code>, of very different quality and funding.</p></div>
+        <div class="q"><p class="ask">Is this use FDA-approved?</p><p class="where">Buried in the indications of the <code>FDA label</code>, sometimes under another name.</p></div>
+        <div class="q"><p class="ask">What will my patient pay?</p><p class="where">Spread across <code>NADAC</code>, Medicare spending and thousands of plan formularies.</p></div>
+        <div class="q"><p class="ask">Who should I refer to?</p><p class="where">Experience hides in <code>CMS prescriber data</code>; contacts in the NPI Registry.</p></div>
+        <div class="q"><p class="ask">How do I explain it simply?</p><p class="where">Medication Guides and <code>MedlinePlus</code> pages, written for different readers.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="product" class="features">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The product</p>
+        <h2>Six tabs, in the same order for every drug.</h2>
+        <p class="lede">Search a drug, a condition or a mechanism, with spelling help as you type. Each drug opens to a summary card and six tabs.</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature">
+          <div class="tabname"><span class="n">TAB 1</span></div>
+          <h3>Evidence</h3>
+          <p>How strong the evidence is for this use, and why.</p>
+          <ul><li>GRADE certainty with its reasons</li><li>MEDLINE studies, Cochrane reviews, trials with posted results</li><li>Funding badge on every study</li><li>One-click medical necessity letter</li></ul>
+          <p class="src">PubMed · Europe PMC · ClinicalTrials.gov · openFDA</p>
+        </article>
+        <article class="feature">
+          <div class="tabname"><span class="n">TAB 2</span></div>
+          <h3>Cases</h3>
+          <p>Published case reports for rare uses and unusual reactions.</p>
+          <ul><li>Case reports and case series</li><li>Funding labelled</li><li>Copy citations</li></ul>
+          <p class="src">PubMed · Europe PMC</p>
+        </article>
+        <article class="feature">
+          <div class="tabname"><span class="n">TAB 3</span></div>
+          <h3>Manufacturer</h3>
+          <p>Who makes it, and which research they ran or paid for.</p>
+          <ul><li>Brand and generic application holders</li><li>Manufacturer-run trials</li><li>Studies with industry-affiliated authors, labelled</li></ul>
+          <p class="src">Drugs@FDA · ClinicalTrials.gov · PubMed</p>
+        </article>
+        <article class="feature">
+          <div class="tabname"><span class="n">TAB 4</span></div>
+          <h3>Costs</h3>
+          <p>What it costs, who covers it and how to save.</p>
+          <ul><li>Pharmacy cost per product, with a 22-month trend</li><li>Coverage across every Medicare drug plan: tier, prior auth, step therapy, typical copay</li><li>2026 Part D calculator, negotiated prices, cheaper drugs in the class</li></ul>
+          <p class="src">NADAC · CMS formularies · Part D and Part B · VA prices</p>
+        </article>
+        <article class="feature">
+          <div class="tabname"><span class="n">TAB 5</span></div>
+          <h3>Specialists</h3>
+          <p>Clinicians with real experience with the drug, near the patient.</p>
+          <ul><li>Ranked by Medicare prescribing and clinic administration</li><li>Matched to the condition’s specialty</li><li>Phone, fax and secure Direct address; recruiting trial sites</li></ul>
+          <p class="src">CMS prescriber data · NPI Registry · ClinicalTrials.gov</p>
+        </article>
+        <article class="feature">
+          <div class="tabname"><span class="n">TAB 6</span></div>
+          <h3>Patient info</h3>
+          <p>A physician view of the label, and a handout the patient can follow.</p>
+          <ul><li>Top things to know, how to take it, when to call 911</li><li>How common side effects are, compared with placebo</li><li>Interactions, tests, pregnancy, storage, cost; Spanish links</li></ul>
+          <p class="src">FDA label and Medication Guide · MedlinePlus</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="data">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The data</p>
+        <h2>Government data, refreshed every week.</h2>
+        <p class="lede">Vynthera reads the original public sources directly. Larger files are imported every Monday; everything else is looked up live and cached.</p>
+      </div>
+      <div class="numbers">
+        <div class="num"><span class="big">5,496</span><span class="what">Medicare drug plans</span><span class="from">Coverage checked plan by plan, from CMS formulary files</span></div>
+        <div class="num"><span class="big">5,958</span><span class="what">Priced products</span><span class="from">Pharmacy acquisition cost (NADAC), updated weekly</span></div>
+        <div class="num"><span class="big">28M</span><span class="what">Prescribing records</span><span class="from">Distilled to the most experienced prescribers of 1,823 drugs</span></div>
+        <div class="num"><span class="big">~20</span><span class="what">Public sources</span><span class="from">FDA, NIH and NLM, CMS, the VA and more, joined on one page</span></div>
+      </div>
+      <div class="pipeline" style="margin-top: 40px;">
+        <div class="step">
+          <h3>Read the original sources</h3>
+          <p>Labels, studies, trials, prices, plan formularies and provider records, straight from the agencies that publish them.</p>
+          <div class="tags"><span class="tag">openFDA</span><span class="tag">PubMed</span><span class="tag">ClinicalTrials.gov</span><span class="tag">CMS</span><span class="tag">NADAC</span><span class="tag">NPPES</span><span class="tag">RxNorm</span><span class="tag">MedlinePlus</span></div>
+        </div>
+        <div class="step">
+          <h3>Apply transparent rules</h3>
+          <p>GRADE for evidence certainty, label text for approval, trial sponsors and grants for funding, the 2026 Medicare benefit for cost.</p>
+        </div>
+        <div class="step">
+          <h3>Show the answer with its source</h3>
+          <p>One drug page with six tabs. Each claim links back to the record it came from, so a physician can check it in one click.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="trust" class="trust">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Trust</p>
+        <h2>Built to be checked, not taken on faith.</h2>
+        <p class="lede">Clinical decisions need sources. Vynthera is designed so every judgement can be traced and verified.</p>
+      </div>
+      <div class="trust-grid">
+        <div class="rule"><h3>Every claim is sourced</h3><p>Study conclusions are quoted, label text is linked, and prices name their dataset and date.</p></div>
+        <div class="rule"><h3>Judgements show their reasons</h3><p>Certainty is rated with GRADE and its downgrades listed. When funding isn’t reported, the page says so instead of guessing.</p></div>
+        <div class="rule"><h3>No pharmaceutical influence</h3><p>No drug advertising, and specialists are never ranked by industry payments.</p></div>
+        <div class="rule"><h3>Patient privacy by design</h3><p>No patient records are stored. Details typed into the letter tool stay in the physician’s browser.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap split">
+      <div class="who">
+        <div class="section-head" style="margin-bottom: 8px;">
+          <p class="eyebrow">Who it’s for</p>
+          <h2>Made for the people who write the prescription.</h2>
+        </div>
+        <ul>
+          <li><b>Specialists</b><span>Endocrinology, rheumatology, dermatology, psychiatry and others that often prescribe off-label and need evidence for prior authorizations.</span></li>
+          <li><b>Primary care</b><span>A quick check of evidence and cost before prescribing, and a handout for the patient.</span></li>
+          <li><b>Clinic and practice teams</b><span>Letters of medical necessity, coverage checks and referrals in one place.</span></li>
+          <li><b>Residents and educators</b><span>Evidence graded and explained, with the studies behind it.</span></li>
+        </ul>
+      </div>
+      <div>
+        <div class="section-head" style="margin-bottom: 18px;">
+          <p class="eyebrow">Questions</p>
+          <h2>Frequently asked.</h2>
+        </div>
+        <details><summary>Where does the information come from?</summary><p>From public US sources: the FDA (labels and Drugs@FDA), the National Library of Medicine (PubMed, RxNorm, MedlinePlus), ClinicalTrials.gov, CMS Medicare datasets and plan formularies, Medicaid NADAC prices, the VA price list and the NPI Registry.</p></details>
+        <details><summary>Does Vynthera use AI?</summary><p>AI is optional and limited to summarizing and plain-language writing, and it is labelled where used. Approval checks, certainty ratings, funding and costs come from the source data and fixed rules.</p></details>
+        <details><summary>Is it medical advice?</summary><p>No. Vynthera is an information tool for licensed clinicians and does not replace clinical judgement. Every claim links to its source so it can be verified.</p></details>
+        <details><summary>How current is the data?</summary><p>Prices, Medicare plan coverage and prescriber data are imported every week. Labels, studies and trials are looked up live and cached for a short time.</p></details>
+        <details><summary>Does it store patient information?</summary><p>No. There is no patient database. Patient details entered for a letter stay in the browser and are not sent to Vynthera’s servers or to any AI service.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section id="pilot" class="cta">
+    <div class="wrap">
+      <div class="cta-card">
+        <div>
+          <h2>Bring Vynthera to your practice.</h2>
+          <p>We’re opening a pilot for physicians and clinic teams. Pilot users get early access and help shape what comes next.</p>
+        </div>
+        <div class="cta-row"><a class="btn btn-light" href="#product">Explore the product</a></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="brand"><span class="logo" aria-hidden="true"></span>Vynthera</span>
+    <p>Vynthera is an information tool for licensed clinicians. It does not provide medical advice, diagnosis or treatment. Figures on this page describe the data Vynthera uses as of October 2026; the product page shown is an illustration.</p>
+    <p>Data sources include openFDA and DailyMed, PubMed, Europe PMC, ClinicalTrials.gov, Open Targets, RxNorm, MedlinePlus, Medicaid NADAC, CMS Medicare datasets and formularies, the VA Federal Supply Schedule and the NPPES NPI Registry.</p>
+  </div>
+</footer>
+
+</body>
+</html>
