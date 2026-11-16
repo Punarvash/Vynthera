@@ -1,9 +1,9 @@
 {
-  "importedAt": "2026-11-09",
+  "importedAt": "2026-11-16",
   "nadac": {
     "title": "NADAC (National Average Drug Acquisition Cost) 2026",
-    "url": "https://download.medicaid.gov/data/nadac-national-average-drug-acquisition-cost-11-04-2026.csv",
-    "asOf": "2026-11-04",
+    "url": "https://download.medicaid.gov/data/nadac-national-average-drug-acquisition-cost-11-11-2026.csv",
+    "asOf": "2026-11-11",
     "rows": 5955
   },
   "prescribers": {
@@ -47,7 +47,7 @@
   },
   "va": {
     "url": "https://department.va.gov/procurement-acquisition-and-logistics/wp-content/uploads/sites/56/2026/11/TPharmPrices-11-01-2026.xlsx",
-    "asOf": "2026-11-09",
+    "asOf": "2026-11-16",
     "rows": 7887
   },
   "partBProviders": {
